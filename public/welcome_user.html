@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Parking</title>
+    <link rel="stylesheet" href="css/style.css"> <!-- Base styles -->
+    <link rel="stylesheet" href="css/map_dashboard.css"> <!-- Map specific -->
+    <!-- Google Maps API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUOZZVBiN9GqDQrvvUnTO5G8JRO_Z3K9s&callback=initMap"
+        defer></script>
+    <style>
+        /* Ticket Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .close-modal {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close-modal:hover {
+            color: black;
+        }
+
+        .ticket-form-group {
+            margin-bottom: 15px;
+        }
+
+        .ticket-form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .ticket-form-group select,
+        .ticket-form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .ticket-btn {
+            background-color: #a66565;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        /* Ticket List Styles */
+        .ticket-section {
+            margin-bottom: 20px;
+        }
+
+        .ticket-section h3 {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .ticket-item {
+            background: #f9f9f9;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+
+        .ticket-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .ticket-status {
+            font-size: 0.8rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: white;
+        }
+
+        .status-sent {
+            background-color: #6c757d;
+        }
+
+        .status-read {
+            background-color: #17a2b8;
+        }
+
+        .status-processing {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        .status-rejected {
+            background-color: #dc3545;
+        }
+
+        .status-completed {
+            background-color: #28a745;
+        }
+
+        .admin-reply {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #ccc;
+            font-size: 0.9rem;
+            color: #0056b3;
+        }
+
+        /* Sidebar Detail Styles */
+        #parkingDetailSidebar {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            background: #fff;
+        }
+
+        .detail-header {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            margin-right: 10px;
+            color: #333;
+        }
+
+        .detail-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .detail-img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .detail-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .detail-meta {
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .detail-section {
+            margin-bottom: 20px;
+        }
+
+        .detail-section h4 {
+            margin-bottom: 8px;
+            font-size: 1rem;
+            color: #444;
+            border-bottom: 2px solid #a66565;
+            display: inline-block;
+            padding-bottom: 3px;
+        }
+
+        .price-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .price-table td {
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .price-table td:last-child {
+            text-align: right;
+            font-weight: bold;
+            color: #a66565;
+        }
+
+        .map-preview {
+            width: 100%;
+            height: 150px;
+            background-color: #eee;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .book-btn-container {
+            padding: 15px;
+            border-top: 1px solid #eee;
+            background: #fff;
+        }
+
+        .book-now-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #a66565;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        /* Ensure search content fills sidebar for correct scrolling */
+        #searchSideContent {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Override potential issues with results list */
+        .results-list {
+            flex: 1;
+            overflow-y: auto;
+            /* Ensure it scrolls internally */
+            min-height: 0;
+            /* Fix for flex item scrolling */
+        }
+    </style>
+
+</head>
+
+<body class="map-dashboard">
+    <div class="map-layout">
+        <!-- Header -->
+        <div class="map-header">
+            <div class="logo-area">
+                <div
+                    style="width: 30px; height: 30px; border: 2px solid #333; border-radius: 50%; text-align: center; line-height: 26px;">
+                    ⭐</div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <!-- Rent Button (Restored per image) -->
+                <a href="#" class="btn" id="rentButton" onclick="handleProviderNavigation()"
+                    style="background-color: #a66565; margin: 0; width: auto; font-size: 0.9rem; border:1px solid white;">ปล่อยเช่าที่จอด</a>
+                <!-- Profile -->
+                <div class="user-profile" onclick="toggleMenu()" style="position: relative;"><img
+                        src="https://via.placeholder.com/40" alt="Profile" class="profile-pic" id="headerProfilePic"
+                        style="border-radius: 50%; width: 40px; height: 40px; border: 2px solid white;">
+                    <div class="profile-menu" id="profileMenu" style="top: 50px; right: 0;"><a
+                            href="user_tickets.html">คำร้องเรียน</a><a href="send_ticket.html">แจ้งปัญหา</a><a
+                            href="user_profile.html">Edit
+                            Profile</a><a href="welcome_provider.html" id="providerLink"
+                            style="display:none; color: #a66565; font-weight:bold;">Provider Dashboard</a>
+                        <!-- If not provider, maybe 'Become a Provider' ? User logic handles this -->
+                        <button onclick="logout()">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Body -->
+        <div class="map-body">
+            <!-- Sidebar -->
+            <div class="map-sidebar">
+                <!-- Search & Filters Container -->
+                <div id="searchSideContent">
+                    <div class="search-container">
+                        <div class="search-title">กรุงเทพมหานคร Thailand</div>
+                        <div class="search-input-group"><span>📍</span><input type="text" placeholder="ระบุสถานที่"
+                                value="กรุงเทพมหานคร Thailand"></div>
+                        <div class="filter-row">
+                            <div class="filter-box"><span>📅</span><input type="date" value="2024-05-12"></div>
+                            <div class="filter-box"><span>⏰</span><input type="time" value="07:00">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <div class="filter-box"><span>📅</span><input type="date" value="2024-05-13"></div>
+                            <div class="filter-box"><span>⏰</span><input type="time" value="13:00">
+                            </div>
+                        </div><button class="search-btn">ค้นหา</button>
+                    </div>
+                    <div class="tab-row"><button class="tab-btn active">รายวัน</button><button
+                            class="tab-btn">รายชั่วโมง</button></div>
+                    <div class="results-list" id="resultsList">Loading... </div>
+                </div>
+                <!-- Detail Sidebar (Hidden by default) -->
+                <div id="parkingDetailSidebar">
+                    <div class="detail-header"><button class="back-btn" onclick="hideParkingDetail()">←</button><span
+                            style="font-weight: bold; font-size: 1.1rem;">รายละเอียด</span></div>
+                    <div class="detail-content">
+                        <img id="detailImg" src="" class="detail-img">
+                        <div id="detailName" class="detail-name">Unknown Place</div>
+                        <div class="detail-meta"></div>
+
+                        <!-- Operating Hours -->
+                        <div class="detail-section">
+                            <h4>เวลาทำการ</h4>
+                            <div id="detailHours" style="font-size: 0.9rem; color: #555; line-height: 1.5;">
+                                - Loading -
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="detail-section">
+                            <h4>รายละเอียดพื้นที่</h4>
+                            <p id="detailDesc" style="color: #555; line-height: 1.5; font-size: 0.9rem;">- No
+                                description -</p>
+                        </div>
+
+                        <!-- Location Map -->
+                        <div class="detail-section">
+                            <h4>ตำแหน่ง</h4>
+                            <div id="detailMapPreview" class="map-preview">📍 Map View </div>
+                        </div>
+                    </div>
+
+                    <!-- Booking Section -->
+                    <div class="book-btn-container">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display:block; font-weight:bold; margin-bottom:5px;">เลือกโซน</label>
+                            <select id="bookingZone"
+                                style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                                <option value="">-- Loading Zones --</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <label style="display:block; font-weight:bold; margin-bottom:5px;">วันที่เข้าจอด</label>
+                            <input type="date" id="bookingDate"
+                                style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display:block; font-weight:bold; margin-bottom:5px;">เวลาเข้าจอด</label>
+                            <input type="time" id="bookingTime"
+                                style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                        </div>
+                        <button class="book-now-btn" onclick="handleBooking()">จองที่จอด</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Map -->
+            <div id="map" class="map-container"></div>
+        </div>
+    </div>
+    <!-- ... Modals ... -->
+
+    <script>
+        // Profile & Auth
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = 'index.html';
+
+        // Load profile pic and provider status
+        const user = JSON.parse(localStorage.getItem('user'));
+        console.log('User loaded:', user);
+
+        if (user) {
+            if (user.profile_pic) {
+                document.getElementById('headerProfilePic').src = user.profile_pic;
+            }
+        }
+
+        // Toggle Menu
+        function toggleMenu() {
+            document.getElementById('profileMenu').classList.toggle('show');
+        }
+
+        // Close menu/modal on click outside
+        window.onclick = function (event) {
+            if (!event.target.matches('.profile-pic')) {
+                var dropdowns = document.getElementsByClassName("profile-menu");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    var openDropdown = dropdowns[i];
+                    if (openDropdown.classList.contains('show')) {
+                        openDropdown.classList.remove('show');
+                    }
+                }
+            }
+        }
+
+        async function logout() {
+            try {
+                const token = localStorage.getItem('token');
+                if (token) {
+                    await fetch('/api/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+            localStorage.clear();
+            window.location.replace('index.html');
+        }
+
+        // --- MAP LOGIC ---
+        let map;
+        let selectedLocation = null;
+        let detailMap;
+        let detailMarker;
+
+        function initMap() {
+            const bangkok = { lat: 13.7563, lng: 100.5018 };
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 12,
+                center: bangkok,
+                disableDefaultUI: false,
+            });
+
+            // Map ready, markers will be added if data already loaded
+            if (window.parkingLocations) {
+                addMarkers(window.parkingLocations);
+            }
+        }
+
+        async function loadParkingData() {
+            try {
+                console.log('Fetching parking data...');
+                const res = await fetch('/api/parking/search');
+                if (!res.ok) throw new Error(`HTTP error ! status: ${res.status}`);
+                const locations = await res.json();
+                console.log('Parking locations loaded:', locations);
+                window.parkingLocations = locations;
+                renderList(locations);
+                if (typeof google !== 'undefined' && map) {
+                    addMarkers(locations);
+                }
+            } catch (err) {
+                console.error('Error loading parking data:', err);
+                document.getElementById('resultsList').innerHTML = '<p style="padding:10px; color:red;">Failed to load parking data. Please try again later.</p>';
+            }
+        }
+
+        loadParkingData();
+
+        function renderList(locations) {
+            const list = document.getElementById('resultsList');
+            list.innerHTML = '';
+            if (locations.length === 0) {
+                list.innerHTML = '<p style="padding:10px;">ไม่พบที่จอดรถ</p>';
+                return;
+            }
+            locations.forEach(loc => {
+                const div = document.createElement('div');
+                div.className = 'place-card';
+                div.onclick = () => {
+                    panToLocation(loc.lat, loc.lng);
+                    showParkingDetail(loc);
+                };
+                const imgUrl = loc.image_url ? loc.image_url : 'https://via.placeholder.com/80';
+                div.innerHTML = `<img src="${imgUrl}" class="place-img" style="object-fit:cover;">
+                                    <div class="place-info">
+                                        <div class="place-name">${loc.name}</div>
+                                        <div class="place-rating"></div>
+                                        <div class="place-tags">
+                                            <span class="tag">รายชั่วโมง</span>
+                                            <span class="tag">รายวัน</span>
+                                        </div>
+                                        <div class="place-price">฿${loc.price_hourly || 0}/ชม.</div>
+                                        <div style="margin-top: 5px;">
+                                            <span style="font-size: 0.8rem; color: #888;">คลิกเพื่อดูรายละเอียด</span>
+                                        </div>
+                                    </div>`;
+                list.appendChild(div);
+            });
+        }
+
+        function addMarkers(locations) {
+            if (!map || typeof google === 'undefined') return;
+            locations.forEach(loc => {
+                if (loc.lat && loc.lng) {
+                    const marker = new google.maps.Marker({
+                        position: { lat: parseFloat(loc.lat), lng: parseFloat(loc.lng) },
+                        map: map,
+                        title: loc.name
+                    });
+                    marker.addListener("click", () => {
+                        showParkingDetail(loc);
+                        map.setZoom(15);
+                        map.setCenter(marker.getPosition());
+                    });
+                }
+            });
+        }
+
+        function panToLocation(lat, lng) {
+            if (lat && lng && map) {
+                map.setCenter({ lat: parseFloat(lat), lng: parseFloat(lng) });
+                map.setZoom(15);
+            }
+        }
+
+        // --- SIDEBAR DETAILS LOGIC ---
+
+        async function showParkingDetail(loc) {
+            selectedLocation = loc;
+
+            // Populate Check
+            document.getElementById('detailImg').src = loc.image_url || 'https://via.placeholder.com/300';
+            document.getElementById('detailName').innerText = loc.name;
+            document.getElementById('detailDesc').innerText = loc.details || 'ไม่มีรายละเอียดเพิ่มเติม';
+
+            // Prices
+            // ...
+
+            // Render Operating Hours
+            const hoursDiv = document.getElementById('detailHours');
+            if (loc.operating_hours && loc.operating_hours.length > 0) {
+                let hoursHtml = '';
+                loc.operating_hours.forEach(h => {
+                    const timeStr = h.is_24h ? '24 ชั่วโมง' : (h.is_open ? `${h.open_time.slice(0, 5)} - ${h.close_time.slice(0, 5)}` : 'ปิด');
+                    hoursHtml += `<div style="display:flex; justify-content:space-between;"><span>${h.day_of_week}</span><span>${timeStr}</span></div>`;
+                });
+                hoursDiv.innerHTML = hoursHtml;
+            } else {
+                hoursDiv.innerText = 'ไม่ระบุเวลาทำการ';
+            }
+
+            // Set default date/time
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0];
+            const timeStr = now.toTimeString().slice(0, 5);
+            document.getElementById('bookingDate').value = dateStr;
+            document.getElementById('bookingTime').value = timeStr;
+
+            // Fetch Zones
+            const zoneSelect = document.getElementById('bookingZone');
+            zoneSelect.innerHTML = '<option value="">Loading...</option>';
+            try {
+                const res = await fetch(`/api/parking/zones/${loc.id}`);
+                const zones = await res.json();
+
+                if (zones.length > 0) {
+                    let opts = '<option value="">-- เลือกโซน --</option>';
+                    zones.forEach(z => {
+                        const label = `${z.name} (ว่าง ${z.available_slots})`;
+                        opts += `<option value="${z.id}" ${z.available_slots == 0 ? 'disabled' : ''}>${label}</option>`;
+                    });
+                    zoneSelect.innerHTML = opts;
+                } else {
+                    zoneSelect.innerHTML = '<option value="">ไม่พบโซนจอดรถ</option>';
+                }
+            } catch (e) {
+                console.error(e);
+                zoneSelect.innerHTML = '<option value="">Error loading zones</option>';
+            }
+
+            // Show Sidebar, Hide List
+            document.getElementById('searchSideContent').style.display = 'none';
+            document.getElementById('parkingDetailSidebar').style.display = 'flex';
+
+            // ... (Rest of Mini Map Logic) ...
+            if (typeof google !== 'undefined' && google.maps) {
+                // ... (existing mini map logic) ...
+                const point = {
+                    lat: parseFloat(loc.lat),
+                    lng: parseFloat(loc.lng)
+                };
+                const mapDiv = document.getElementById('detailMapPreview');
+
+                // Clear previous content if it was text
+                if (mapDiv.innerHTML.includes('Map View')) {
+                    mapDiv.innerHTML = '';
+                }
+
+                if (!detailMap) {
+                    detailMap = new google.maps.Map(mapDiv, {
+                        center: point,
+                        zoom: 15,
+                        disableDefaultUI: true,
+                        streetViewControl: false,
+                        mapTypeControl: false
+                    });
+                    detailMarker = new google.maps.Marker({
+                        position: point,
+                        map: detailMap
+                    });
+                } else {
+                    detailMap.setCenter(point);
+                    detailMarker.setPosition(point);
+                    google.maps.event.trigger(detailMap, 'resize');
+                }
+            }
+        }
+
+        function hideParkingDetail() {
+            // Hide Sidebar, Show List
+            document.getElementById('parkingDetailSidebar').style.display = 'none';
+            document.getElementById('searchSideContent').style.display = 'flex';
+            selectedLocation = null;
+        }
+
+        async function handleBooking() {
+            if (!selectedLocation) return;
+
+            const zoneId = document.getElementById('bookingZone').value;
+            if (!zoneId) return alert('กรุณาเลือกโซนที่ต้องการจอง');
+
+            const date = document.getElementById('bookingDate').value;
+            const time = document.getElementById('bookingTime').value;
+
+            const confirmBooking = confirm(`ยืนยันการจอง: ${selectedLocation.name}?\nวันที่: ${date}\nเวลา: ${time}`);
+            if (confirmBooking) {
+                try {
+                    const token = localStorage.getItem('token');
+                    // Note: API /reserve currently only uses zone_id, user_id (from token decoded on server if needed, or body).
+                    // Our /reserve reads simple body. Let's send user_id if we have it or rely on logic. 
+                    // Our /reserve reads simple body. Let's send user_id if we have it or rely on logic.
+                    // Wait, current /reserve reads `user_id` from body but doesn't enforce auth middleware yet?
+                    // Implementation plan didn't specify middleware but strictly we should.
+                    // I will assumed standard fetch without auth header for now based on snippet,
+                    // BUT other calls use it. I should send it.
+
+                    // Load profile pic and provider status
+                    const user = JSON.parse(localStorage.getItem('user'));
+                    console.log('User loaded:', user);
+
+                    const res = await fetch('/api/parking/reserve', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            zone_id: zoneId,
+                            user_id: user ? user.id : null
+                        })
+                    });
+
+                    const data = await res.json();
+                    if (res.ok) {
+                        alert(`จองสำเร็จ!\nช่องจอด: ${data.slot_number}`);
+                        // Refresh zones to update counts
+                        showParkingDetail(selectedLocation);
+                    } else {
+                        alert(`จองไม่สำเร็จ: ${data.message}`);
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Error connecting to server');
+                }
+            }
+        }
+
+        // Check provider status for link
+        function handleProviderNavigation() {
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (user && user.provider_status === 'approved') {
+                window.location.href = 'welcome_provider.html';
+            } else {
+                window.location.href = 'become_provider.html';
+            }
+        }
+
+        // Setup Menu Link
+        const link = document.getElementById('providerLink');
+
+        if (link) {
+            link.style.display = 'block';
+
+            if (user && user.provider_status === 'approved') {
+                link.innerText = 'Provider Dashboard';
+                link.onclick = () => window.location.href = 'welcome_provider.html';
+                link.removeAttribute('href');
+            }
+
+            else {
+                link.innerText = 'Become a Provider';
+                link.onclick = () => window.location.href = 'become_provider.html';
+                link.removeAttribute('href');
+                link.style.color = '#007bff'; // Blue for register
+            }
+
+            link.style.cursor = 'pointer';
+        }
+
+
+        // --- TICKET SYSTEM ---
+        function toggleTicketModal() {
+            // Close menu
+            document.getElementById('profileMenu').classList.remove('show');
+            document.getElementById('ticketModal').style.display = 'block';
+        }
+
+        function toggleMyTicketsModal() {
+            // Close menu
+            document.getElementById('profileMenu').classList.remove('show');
+            document.getElementById('myTicketsModal').style.display = 'block';
+            loadMyTickets();
+        }
+
+        function closeMyTicketsModal() {
+            document.getElementById('myTicketsModal').style.display = 'none';
+        }
+
+        function closeTicketModal() {
+            document.getElementById('ticketModal').style.display = 'none';
+        }
+
+        // Send Ticket
+        document.getElementById('ticketForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const type = document.getElementById('ticketType').value;
+            const desc = document.getElementById('ticketDesc').value;
+
+            try {
+                const res = await fetch('/api/tickets/create', {
+
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`
+                    }
+
+                    ,
+                    body: JSON.stringify({
+                        role: 'user',
+                        ticket_type: type,
+                        description: desc
+                    })
+                });
+
+                if (res.ok) {
+                    alert('ส่งคำร้องเรียบร้อยแล้ว');
+                    closeTicketModal();
+                    document.getElementById('ticketForm').reset();
+                }
+
+                else {
+                    alert('เกิดข้อผิดพลาดในการส่งคำร้อง');
+                }
+            }
+
+            catch (err) {
+                console.error(err);
+                alert('Connection error');
+            }
+        });
+
+        // Load Tickets
+        async function loadMyTickets() {
+            try {
+                const res = await fetch('/api/tickets/my-tickets?role=user', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const tickets = await res.json();
+
+                const sentList = document.getElementById('sentTicketsList');
+                const replyList = document.getElementById('replyTicketsList');
+                sentList.innerHTML = '';
+                replyList.innerHTML = '';
+
+                tickets.forEach(t => {
+                    const statusText = getStatusText(t.status);
+                    const statusClass = getStatusClass(t.status);
+
+                    const html = ` <div class="ticket-item" > <div class="ticket-header" > <strong>${getTicketTypeText(t.ticket_type)}</strong> <span class="ticket-status ${statusClass}" >${statusText}</span> </div> <p>${t.description}</p> <small>${new Date(t.created_at).toLocaleString()}</small> ${t.admin_reply ? `<div class="admin-reply"> <strong>Admin Answer:</strong> ${t.admin_reply} </div>` : ''} </div> `;
+
+                    if (t.admin_reply) {
+                        replyList.innerHTML += html;
+                    }
+
+                    else {
+                        sentList.innerHTML += html;
+                    }
+                });
+
+                if (sentList.innerHTML === '') sentList.innerHTML = '<p>ไม่มีคำร้องที่ส่งไป</p>';
+                if (replyList.innerHTML === '') replyList.innerHTML = '<p>ไม่มีคำร้องที่ตอบกลับ</p>';
+
+            }
+
+            catch (err) {
+                console.error(err);
+            }
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 'sent': return 'ส่งแล้ว';
+                case 'read': return 'อ่านแล้ว';
+                case 'processing': return 'กำลังดำเนินการ';
+                case 'rejected': return 'ไม่ผ่าน';
+                case 'completed': return 'เสร็จสิ้น';
+                default: return status;
+            }
+        }
+
+        function getTicketTypeText(type) {
+            switch (type) {
+                case 'booking_issue': return 'ระบบการจองมีปัญหา';
+                case 'parking_issue': return 'พื้นที่จอดรถมีปัญหา';
+                case 'complaint': return 'คำร้องเรียน';
+                case 'other': return 'อื่นๆ';
+                default: return type;
+            }
+        }
+
+        function getStatusClass(status) {
+            if (status === 'sent') return 'status-sent';
+            if (status === 'read') return 'status-read';
+            if (status === 'processing') return 'status-processing';
+            if (status === 'rejected') return 'status-rejected';
+            if (status === 'completed') return 'status-completed';
+            return '';
+        }
+
+    </script>
+</body>
+
+</html>

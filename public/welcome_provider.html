@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Provider Dashboard</title>
+    <link rel="stylesheet" href="css/provider.css">
+</head>
+
+<body>
+    <div class="provider-layout">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">เมนู</div>
+            <div class="sidebar-menu">
+                <a href="add_parking.html" class="menu-item">เพิ่มที่จอดรถ</a>
+                <a href="#" class="menu-item active" onclick="loadParkingView(this)">ดูที่จอดรถ</a>
+
+                <a href="#" class="menu-item">แจ้งซ่อม</a>
+                <a href="#" onclick="logout()" class="menu-item">ออกจากระบบ</a>
+            </div>
+            <div style="padding: 10px;">
+                <a href="welcome_user.html" style="font-size:0.8rem; color:#555;">Back to User Dashboard</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="top-bar">
+                <div class="bar-title">ปล่อยเช่าที่จอด</div>
+                <div class="user-badge" id="userBadge">Provider</div>
+            </div>
+
+            <div class="content-area" id="contentArea">
+                <!-- Content Loaded Here -->
+                <h2>รายการพื้นที่จอดรถ</h2>
+                <div id="parkingList">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* CSS from parking_status.html */
+        .parking-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .slot-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+            min-height: 150px;
+        }
+
+        .slot-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .slot-number {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .status-indicator {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .status-text {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .back-btn {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 8px 16px;
+            background-color: #6c757d;
+            color: white;
+            border-radius: 5px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .back-btn:hover {
+            background-color: #5a6268;
+        }
+
+        .zone-link {
+            color: #007bff;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .zone-link:hover {
+            color: #0056b3;
+        }
+    </style>
+
+    <script src="js/dashboard.js"></script>
+    <script>
+        // Init
+        const user = JSON.parse(localStorage.getItem('user'));
+        const token = localStorage.getItem('token');
+
+        if (user) {
+            document.getElementById('userBadge').innerText = user.first_name || 'Provider';
+        }
+
+        // --- VIEWS ---
+
+        function updateActiveMenu(el) {
+            document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+            if (el) el.classList.add('active');
+        }
+
+        async function loadParkingView(el) {
+            if (el) updateActiveMenu(el);
+            const content = document.getElementById('contentArea');
+            content.innerHTML = `<h2>รายการพื้นที่จอดรถ</h2><div id="parkingList">Loading...</div>`;
+
+            const list = document.getElementById('parkingList');
+
+            try {
+                const res = await fetch('/api/provider/my-dashboard-data', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+
+                if (data.length === 0) {
+                    list.innerHTML = '<p>ไม่มีพื้นที่จอดรถ</p>';
+                    return;
+                }
+
+                let html = '';
+                data.forEach(loc => {
+                    if (loc.zones.length === 0) {
+                        html += createCard(loc.id, loc.name, null, '(ไม่มีโซน)', '0/0', loc.status);
+                    } else {
+                        loc.zones.forEach(zone => {
+                            const occ = zone.occupied || 0;
+                            const cap = zone.capacity || 0;
+                            html += createCard(loc.id, loc.name, zone.id, zone.name, `${occ}/${cap}`, loc.status);
+                        });
+                    }
+                });
+                list.innerHTML = html;
+            } catch (err) {
+                console.error(err);
+                list.innerHTML = 'Error loading data';
+            }
+        }
+
+        function createCard(locId, locName, zoneId, zoneName, ratio, status) {
+            let statusLabel = status;
+            let statusClass = 'status-closed';
+
+            // Mapping status
+            if (status === 'เปิด') statusClass = 'status-open';
+            else if (status === 'ปิด') statusClass = 'status-closed';
+            else if (status === 'ปิดปรับปรุง') statusClass = 'status-maintenance';
+            else if (status === 'ถูกระงับการใช้งาน') statusClass = 'status-suspended';
+            else if (status === 'รอการอนุมัติ') statusClass = 'status-pending';
+            else if (status === 'ไม่อนุมัติ') statusClass = 'status-rejected';
+
+            // Make zone clickable if it exists
+            const zoneDisplay = zoneId
+                ? `<span class="zone-link" onclick="loadZoneView(${zoneId}, '${zoneName}', '${locName}')">(${zoneName})</span>`
+                : `<span style="color:#666;">${zoneName}</span>`;
+
+            return `
+                <div class="parking-card">
+                    <div>
+                        <strong>${locName}</strong> ${zoneDisplay}
+                    </div>
+                    <div>${ratio}</div>
+                    <div class="status-badge ${statusClass}">${statusLabel}</div>
+                </div>
+            `;
+        }
+
+        let refreshInterval = null;
+
+        async function loadZoneView(zoneId, zoneName, locName) {
+            // Stop any existing interval
+            if (refreshInterval) clearInterval(refreshInterval);
+
+            const content = document.getElementById('contentArea');
+            content.innerHTML = `
+                <div class="back-btn" onclick="loadParkingView()">← ย้อนกลับ</div>
+                <h2>สถานะที่จอดรถ: ${locName} - ${zoneName}</h2>
+                <div id="loading" class="loading">กำลังโหลดข้อมูล...</div>
+                <div id="parking-container" class="parking-container"></div>
+            `;
+
+            const fetchStatus = async () => {
+                try {
+                    const response = await fetch(`/api/parking/status/${zoneId}`);
+                    const data = await response.json();
+
+                    const container = document.getElementById('parking-container');
+                    const loading = document.getElementById('loading');
+
+                    if (loading) loading.style.display = 'none';
+                    if (!container) return; // View changed
+
+                    container.innerHTML = '';
+
+                    if (data.length === 0) {
+                        container.innerHTML = '<p>ไม่มีช่องจอดในโซนนี้</p>';
+                        return;
+                    }
+
+                    data.forEach(slot => {
+                        const card = document.createElement('div');
+                        card.className = 'slot-card';
+
+                        const status = slot.spot_status || 'ว่าง';
+
+                        let statusClass = 'available';
+                        let icon = '✅';
+                        let text = status;
+                        let color = '#28a745'; // Green
+
+                        switch (status) {
+                            case 'ว่าง':
+                                statusClass = 'available';
+                                icon = '✅';
+                                color = '#28a745';
+                                break;
+                            case 'มีรถเล็ก':
+                            case 'มีรถใหญ่':
+                                statusClass = 'occupied';
+                                icon = '🚗';
+                                color = '#dc3545'; // Red
+                                break;
+                            case 'ไม่ใช่รถ':
+                                statusClass = 'occupied';
+                                icon = '❌';
+                                color = '#ffc107';
+                                text = 'ไม่ใช่รถ';
+                                break;
+                            case 'ยังไม่ติดตั้งแม่เหล็ก':
+                                statusClass = 'occupied';
+                                icon = '🔧';
+                                color = '#6c757d';
+                                text = 'ยังไม่ติดตั้ง';
+                                break;
+                            default:
+                                statusClass = 'available';
+                                icon = '✅';
+                        }
+
+                        const lastUpdated = new Date(slot.last_updated).toLocaleTimeString('th-TH');
+
+                        card.innerHTML = `
+                            <div class="slot-number">${slot.slot_number}</div>
+                            <div class="status-indicator ${statusClass}" style="background-color: ${color}; box-shadow: 0 0 15px ${color}80;">
+                                ${icon}
+                            </div>
+                            <div class="status-text" style="color: ${color}">
+                                ${text}
+                            </div>
+                            <div style="margin-top: 5px; font-size: 12px; color: #888;">
+                                Last update: ${lastUpdated}
+                            </div>
+                        `;
+
+                        container.appendChild(card);
+                    });
+
+                } catch (error) {
+                    console.error('Error fetching status:', error);
+                }
+            };
+
+            // Initial fetch
+            await fetchStatus();
+
+            // Poll every 2 seconds
+            refreshInterval = setInterval(fetchStatus, 2000);
+        }
+
+        // Hook into sidebar click content reset to clear interval
+        const originalLoadParkingView = loadParkingView;
+        loadParkingView = async function (el) {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+            await originalLoadParkingView(el);
+        };
+
+        async function logout() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            try {
+                if (token) {
+                    await fetch('/api/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+            localStorage.clear();
+            window.location.replace('index.html');
+        }
+
+        // Load initially
+        loadParkingView();
+    </script>
+</body>
+
+</html>

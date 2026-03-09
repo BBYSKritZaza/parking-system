@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>General Tickets</title>
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .ticket-card {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: box-shadow 0.2s;
+        }
+
+        .ticket-card:hover {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .ticket-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .ticket-body {
+            font-size: 0.95rem;
+            color: #444;
+            margin-bottom: 10px;
+        }
+
+        .ticket-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-top: 1px solid #eee;
+            padding-top: 8px;
+        }
+
+        .reply-box {
+            display: none;
+            margin-top: 10px;
+            background: #eef;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .menu-item {
+            cursor: pointer;
+        }
+
+        .menu-item:hover,
+        .menu-item.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="admin-layout">
+        <div class="admin-sidebar">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-shield-halved logo-icon"></i>
+            </div>
+            <div class="sidebar-menu">
+                <div class="menu-item" onclick="window.location.href='admin_dashboard.html'">Dashboard</div>
+                <div class="menu-item" onclick="window.location.href='admin_slots.html'">ตั้งค่าเซ็นเซอร์</div>
+
+                <!-- Section specific items -->
+                <div class="menu-item active" id="menu-processing" onclick="showSection('processing')">
+                    <i class="fa-solid fa-spinner"></i> คำร้องทั่วไปที่กำลังดำเนินการ
+                </div>
+                <div class="menu-item" id="menu-completed" onclick="showSection('completed')">
+                    <i class="fa-solid fa-check-circle"></i> คำร้องทั่วไปที่ดำเนินการเสร็จสิ้น
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-main">
+            <div class="main-header">
+                <div class="user-info">
+                    <i class="fa-solid fa-circle-user user-icon"></i>
+                    <span>admin admin</span>
+                </div>
+            </div>
+
+            <div class="content-area">
+                <div class="page-header">
+                    <h2 id="pageTitle">คำร้องทั่วไป (General Tickets) - กำลังดำเนินการ</h2>
+                </div>
+
+                <div id="ticketListContainer">
+                    Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = 'admin_login.html';
+
+        let allTickets = [];
+        let currentSection = 'processing';
+
+        loadTickets();
+
+        async function loadTickets() {
+            try {
+                const res = await fetch('/api/tickets/admin/list?role=user', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                allTickets = await res.json();
+                renderTickets();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('ticketListContainer').innerHTML = 'Error loading tickets';
+            }
+        }
+
+        function showSection(section) {
+            currentSection = section;
+
+            // Update Menu
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('menu-' + section).classList.add('active');
+
+            // Update Title
+            const title = section === 'processing' ? 'คำร้องทั่วไป (General Tickets) - กำลังดำเนินการ' : 'คำร้องทั่วไป (General Tickets) - ดำเนินการเสร็จสิ้น';
+            document.getElementById('pageTitle').innerText = title;
+
+            renderTickets();
+        }
+
+        function renderTickets() {
+            const container = document.getElementById('ticketListContainer');
+            let filtered = [];
+
+            if (currentSection === 'processing') {
+                filtered = allTickets.filter(t => t.status === 'processing');
+            } else {
+                filtered = allTickets.filter(t => t.status === 'completed');
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p class="text-center" style="color:#666;">No tickets found.</p>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(t => createTicketCard(t)).join('');
+        }
+
+        function createTicketCard(t) {
+            // Determine footer/button text based on status
+            // If processing, show "Reply / Finish". If completed, show "View / Edit"
+            const btnText = t.status === 'completed' ? 'View/Edit' : 'Reply / Finish';
+
+            return `
+                <div class="ticket-card">
+                    <div class="ticket-header">
+                        <strong>${t.first_name} ${t.last_name}</strong>
+                        <span style="color:#777; font-size:0.8rem;">${new Date(t.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div class="ticket-body">
+                        <strong>Topic:</strong> ${getTicketTypeText(t.ticket_type)}<br>
+                        ${t.description}
+                    </div>
+                    ${t.admin_reply ? `<div style="background:#eee; padding:5px; margin-bottom:5px; font-size:0.9rem;"><strong>Admin:</strong> ${t.admin_reply}</div>` : ''}
+                    
+                    <div class="ticket-footer">
+                        <button class="sub-btn" onclick="toggleReply(${t.id})">
+                            ${btnText}
+                        </button>
+                    </div>
+
+                    <div id="reply-box-${t.id}" class="reply-box">
+                         <textarea id="reply-text-${t.id}" rows="3" style="width:100%; margin-bottom:5px;">${t.admin_reply || ''}</textarea>
+                         <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <select id="status-select-${t.id}" style="padding:5px;">
+                                <option value="processing" ${t.status === 'processing' ? 'selected' : ''}>กำลังดำเนินการ</option>
+                                <option value="completed" ${t.status === 'completed' ? 'selected' : ''}>ดำเนินการเสร็จสิ้น</option>
+                            </select>
+                            <button class="action-btn" style="font-size:0.8rem; padding:6px 15px;" onclick="updateTicket(${t.id})">Update</button>
+                         </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleReply(id) {
+            const box = document.getElementById(`reply-box-${id}`);
+            box.style.display = box.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function updateTicket(id) {
+            const status = document.getElementById(`status-select-${id}`).value;
+            const reply = document.getElementById(`reply-text-${id}`).value;
+
+            try {
+                const res = await fetch(`/api/tickets/admin/update/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ status: status, admin_reply: reply })
+                });
+
+                if (res.ok) {
+                    loadTickets(); // Reload all to refresh view
+                } else {
+                    alert('Error updating');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function getTicketTypeText(type) {
+            switch (type) {
+                case 'booking_issue': return 'ระบบการจองมีปัญหา';
+                case 'parking_issue': return 'พื้นที่จอดรถมีปัญหา';
+                case 'complaint': return 'คำร้องเรียน';
+                case 'other': return 'อื่นๆ';
+                default: return type;
+            }
+        }
+    </script>
+</body>
+
+</html>

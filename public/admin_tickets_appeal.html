@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Appeals</title>
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .ticket-card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+
+        .ticket-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .ticket-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .user-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .user-contact {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .suspension-info {
+            background-color: #ffe6e6;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+        }
+
+        .appeal-info {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border-left: 4px solid #ffc107;
+        }
+
+        .no-appeal {
+            color: #999;
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+
+        .action-area {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .menu-item {
+            cursor: pointer;
+        }
+
+        .menu-item:hover,
+        .menu-item.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="admin-layout">
+        <div class="admin-sidebar">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-shield-halved logo-icon"></i>
+            </div>
+            <div class="sidebar-menu">
+                <div class="menu-item" onclick="window.location.href='admin_dashboard.html'">Dashboard</div>
+                <div class="menu-item" onclick="window.location.href='admin_slots.html'">ตั้งค่าเซ็นเซอร์</div>
+
+                <div class="menu-item active" id="menu-appealed" onclick="showSection('appealed')">
+                    <i class="fa-solid fa-envelope-open-text"></i> คำร้องอุทธรณ์การระงับบัญชี
+                </div>
+                <div class="menu-item" id="menu-not-appealed" onclick="showSection('not-appealed')">
+                    <i class="fa-solid fa-user-lock"></i> ยังไม่ยื่นคำร้องอุทธรณ์
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-main">
+            <div class="main-header">
+                <div class="user-info">
+                    <i class="fa-solid fa-circle-user user-icon"></i>
+                    <span>admin admin</span>
+                </div>
+            </div>
+
+            <div class="content-area">
+                <div class="page-header">
+                    <h2 id="pageTitle">คำร้องอุทธรณ์การระงับบัญชี (Appealed Accounts)</h2>
+                </div>
+
+                <div id="listContainer">
+                    Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = 'admin_login.html';
+
+        let suspendedUsers = [];
+        let currentSection = 'appealed';
+
+        loadSuspendedUsers();
+
+        async function loadSuspendedUsers() {
+            try {
+                // Fetch all users and filter for suspended ones
+                // Ideally backend would support filter, but client side is fine for now
+                const res = await fetch('/api/admin/users', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const users = await res.json();
+                suspendedUsers = users.filter(u => u.account_status === 'suspended');
+                renderList();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('listContainer').innerHTML = 'Error loading data';
+            }
+        }
+
+        function showSection(section) {
+            currentSection = section;
+
+            // Update Menu
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('menu-' + section).classList.add('active');
+
+            // Update Title
+            const title = section === 'appealed' ? 'คำร้องอุทธรณ์การระงับบัญชี (Appealed Accounts)' : 'ยังไม่ยื่นคำร้องอุทธรณ์ (Not Appealed Yet)';
+            document.getElementById('pageTitle').innerText = title;
+
+            renderList();
+        }
+
+        function renderList() {
+            const container = document.getElementById('listContainer');
+            let filtered = [];
+
+            if (currentSection === 'appealed') {
+                // Has appeal message and it is not null/empty
+                filtered = suspendedUsers.filter(u => u.appeal_message && u.appeal_message.trim() !== '');
+            } else {
+                // No appeal message
+                filtered = suspendedUsers.filter(u => !u.appeal_message || u.appeal_message.trim() === '');
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p class="text-center" style="color:#666; margin-top:20px;">ไม่พบรายการ (No accounts found)</p>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(u => createUserCard(u)).join('');
+        }
+
+        function createUserCard(u) {
+            return `
+                <div class="ticket-card">
+                    <div class="ticket-header">
+                        <div>
+                            <div class="user-name">${u.first_name} ${u.last_name}</div>
+                            <div class="user-contact">
+                                <i class="fa-solid fa-envelope"></i> ${u.email} | 
+                                <i class="fa-solid fa-phone"></i> ${u.phone || '-'}
+                            </div>
+                        </div>
+                        <span class="badge danger">suspended</span>
+                    </div>
+
+                    <div class="suspension-info">
+                        <strong><i class="fa-solid fa-ban"></i> Suspension Reason:</strong><br>
+                        ${u.suspension_reason || 'No reason specified'}
+                    </div>
+
+                    ${u.appeal_message
+                    ? `<div class="appeal-info">
+                                <strong><i class="fa-solid fa-comment-dots"></i> Appeal Message:</strong><br>
+                                ${u.appeal_message}
+                           </div>`
+                    : '<div class="no-appeal">User has not submitted an appeal yet.</div>'
+                }
+
+                    <div class="action-area">
+                        <button class="action-btn" onclick="unsuspendUser(${u.id})">
+                             <i class="fa-solid fa-unlock"></i> ปลดระงับ (Unsuspend)
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function unsuspendUser(id) {
+            if (!confirm('Are you sure you want to unsuspend this user?')) return;
+
+            try {
+                const res = await fetch(`/api/admin/unsuspend-user/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    alert('User unsuspended successfully');
+                    loadSuspendedUsers(); // Reload list
+                } else {
+                    alert('Error processing request');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Connection error');
+            }
+        }
+    </script>
+</body>
+
+</html>

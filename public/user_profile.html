@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit User Profile</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Edit User Profile</h1>
+        <form id="profileForm" enctype="multipart/form-data">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <img src="https://via.placeholder.com/100" id="currentProfilePic" alt="Profile Picture"
+                    style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid #ddd;">
+                <br>
+                <input type="file" id="profile_pic" accept="image/*" style="margin-top: 10px;">
+            </div>
+            <div class="form-group">
+                <label>First Name</label>
+                <input type="text" id="first_name" required>
+            </div>
+            <div class="form-group">
+                <label>Last Name</label>
+                <input type="text" id="last_name" required>
+            </div>
+            <div class="form-group">
+                <label>Phone</label>
+                <input type="tel" id="phone" required>
+            </div>
+            <button type="submit" class="btn">Save Changes</button>
+        </form>
+        <div style="margin: 1rem 0;">
+            <a href="user_edit_pass.html" class="btn btn-secondary"
+                style="background-color: #ffc107; color: black; text-align:center;">Change Password</a>
+        </div>
+        <a href="welcome_user.html" class="btn btn-secondary" style="text-align: center;">Back to Dashboard</a>
+        <a href="index.html" class="btn-link">Back to Home</a>
+    </div>
+    <script src="js/profile.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Providers</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .container {
+            max-width: 800px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container container-wide">
+        <h1>Manage Providers</h1>
+        <div style="text-align: right; margin-bottom: 1rem;">
+            <a href="admin_dashboard.html" class="btn btn-secondary"
+                style="display:inline-block; width:auto; text-decoration:none;">Back to Dashboard</a>
+        </div>
+
+        <table id="providersTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    <script src="js/admin_dashboard.js"></script>
+    <script>fetchProviders('all');</script>
+</body>
+
+</html>

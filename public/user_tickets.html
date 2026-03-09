@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Complaints</title>
+    <!-- Reuse Admin CSS for the layout consistency -->
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Overrides/specifics for User Tickets */
+        .admin-sidebar {
+            background-color: #d48888;
+            /* Match the reference pinkish color */
+        }
+
+        .sidebar-header .logo-icon {
+            color: #333;
+        }
+
+        .menu-item {
+            color: #333;
+            cursor: pointer;
+        }
+
+        .menu-item:hover,
+        .menu-item.active {
+            background-color: rgba(255, 255, 255, 0.3);
+            font-weight: bold;
+        }
+
+        /* Main Layout */
+        /* Removed .user-ticket-layout, .ticket-column, .col-header, .ticket-list styles */
+
+        .ticket-card {
+            background: #dfcfcf;
+            /* Match table row bg from admin.css */
+            border-bottom: 1px solid #e0e0e0;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            transition: transform 0.2s;
+        }
+
+        .ticket-card:hover {
+            transform: translateX(2px);
+        }
+
+        .ticket-card h4 {
+            margin: 0 0 5px 0;
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .ticket-desc {
+            font-size: 0.9rem;
+            color: #444;
+            margin-bottom: 8px;
+        }
+
+        .ticket-meta {
+            font-size: 0.8rem;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ticket-reply {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            border-left: 4px solid #a66565;
+        }
+
+        .create-btn {
+            background-color: #a66565;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .create-btn:hover {
+            background-color: #8f4d4d;
+        }
+
+        /* Modal specific to this page */
+        .modal-input,
+        .modal-select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <div class="admin-sidebar">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-shield-halved logo-icon"></i>
+                <span style="font-weight:bold; font-size:1.2rem;">Parking User</span>
+            </div>
+            <div class="sidebar-menu">
+                <div class="menu-item" onclick="window.location.href='welcome_user.html'">
+                    <i class="fa-solid fa-arrow-left"></i> กลับไปหน้าหลัก
+                </div>
+                <div class="menu-item active" id="menu-processing" onclick="showSection('processing')">
+                    <i class="fa-solid fa-spinner"></i> คำร้องที่กำลังดำเนินการ
+                </div>
+                <div class="menu-item" id="menu-completed" onclick="showSection('completed')">
+                    <i class="fa-solid fa-check-circle"></i> คำร้องที่ดำเนินการเสร็จสิ้น
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="admin-main">
+            <!-- Top Bar -->
+            <div class="main-header" style="background-color: #e0e0e0; border-bottom: 1px solid #ccc;">
+                <div class="user-info">
+                    <i class="fa-solid fa-circle-user user-icon"></i>
+                    <span id="userNameDisplay">User</span>
+                </div>
+            </div>
+
+            <div class="content-area" style="padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 id="pageTitle">คำร้องที่กำลังดำเนินการ</h2>
+                    <button class="create-btn" onclick="openCreateModal()">
+                        <i class="fa-solid fa-plus"></i> สร้างคำร้องใหม่
+                    </button>
+                </div>
+
+                <div id="ticketListContainer">
+                    Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Ticket Modal -->
+    <div id="createModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCreateModal()">&times;</span>
+            <div class="modal-header">
+                <h3>สร้างคำร้องใหม่</h3>
+            </div>
+            <div class="modal-body">
+                <form id="createTicketForm">
+                    <label style="font-weight:bold;">หัวข้อปัญหา</label>
+                    <select id="ticketType" class="modal-select" required>
+                        <option value="">-- เลือกหัวข้อ --</option>
+                        <option value="booking_issue">ระบบการจองมีปัญหา</option>
+                        <option value="parking_issue">พื้นที่จอดรถมีปัญหา</option>
+                        <option value="complaint">คำร้องเรียน</option>
+                        <option value="other">อื่นๆ</option>
+                    </select>
+
+                    <label style="font-weight:bold;">รายละเอียด</label>
+                    <textarea id="ticketDesc" class="modal-input" rows="5" placeholder="ระบุรายละเอียด..."
+                        required></textarea>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="sub-btn" onclick="closeCreateModal()">ยกเลิก</button>
+                <button class="action-btn" onclick="submitTicket()">ส่งคำร้อง</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = 'index.html';
+
+        // Set User Name
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user) document.getElementById('userNameDisplay').innerText = user.first_name || 'User';
+
+        let allTickets = [];
+        let currentSection = 'processing'; // Default section
+
+        loadTickets();
+
+        async function loadTickets() {
+            try {
+                const res = await fetch('/api/tickets/my-tickets?role=user', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                allTickets = await res.json();
+                renderTickets(); // Render tickets for the current section
+            } catch (err) {
+                console.error(err);
+                document.getElementById('ticketListContainer').innerHTML = 'Error loading tickets';
+            }
+        }
+
+        function showSection(section) {
+            currentSection = section;
+
+            // Update Menu Active State
+            document.querySelectorAll('.sidebar-menu .menu-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('menu-' + section).classList.add('active');
+
+            // Update Header
+            const title = section === 'processing' ? 'คำร้องที่กำลังดำเนินการ' : 'คำร้องที่ดำเนินการเสร็จสิ้น';
+            document.getElementById('pageTitle').innerText = title;
+
+            renderTickets();
+        }
+
+        function renderTickets() {
+            const container = document.getElementById('ticketListContainer');
+            let filtered = [];
+
+            if (currentSection === 'processing') {
+                filtered = allTickets.filter(t => ['sent', 'read', 'processing'].includes(t.status));
+            } else { // currentSection === 'completed'
+                filtered = allTickets.filter(t => ['completed', 'rejected'].includes(t.status));
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#555;">ไม่มีรายการ</p>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(t => createCard(t)).join('');
+        }
+
+        function createCard(t) {
+            const statusColor = getStatusColor(t.status);
+            return `
+                <div class="ticket-card">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <h4>${getTicketTypeText(t.ticket_type)}</h4>
+                        <span class="badge" style="background-color:${statusColor};">${getStatusText(t.status)}</span>
+                    </div>
+                    <div class="ticket-desc">${t.description}</div>
+                    <div class="ticket-meta">
+                        <span><i class="fa-regular fa-clock"></i> ${new Date(t.created_at).toLocaleDateString()}</span>
+                    </div>
+                    ${t.admin_reply ? `<div class="ticket-reply"><strong>Admin ตอบกลับ:</strong> ${t.admin_reply}</div>` : ''}
+                </div>
+            `;
+        }
+
+        // Modal Logic
+        function openCreateModal() { document.getElementById('createModal').style.display = 'block'; }
+        function closeCreateModal() { document.getElementById('createModal').style.display = 'none'; }
+
+        async function submitTicket() {
+            const type = document.getElementById('ticketType').value;
+            const desc = document.getElementById('ticketDesc').value;
+
+            if (!type || !desc) {
+                alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/tickets/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ role: 'user', ticket_type: type, description: desc })
+                });
+                if (res.ok) {
+                    alert('ส่งคำร้องเรียบร้อยแล้ว');
+                    closeCreateModal();
+                    document.getElementById('createTicketForm').reset();
+                    loadTickets(); // Reload all tickets and re-render the current section
+                } else {
+                    alert('Failed to create ticket');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // Helpers
+        function getTicketTypeText(type) {
+            switch (type) {
+                case 'booking_issue':
+                    return 'ระบบการจองมีปัญหา';
+                case 'parking_issue':
+                    return 'พื้นที่จอดรถมีปัญหา';
+                case 'complaint':
+                    return 'คำร้องเรียน';
+                case 'other':
+                    return 'อื่นๆ';
+                default:
+                    return type;
+            }
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 'sent':
+                    return 'ส่งแล้ว';
+                case 'read':
+                    return 'อ่านแล้ว';
+                case 'processing':
+                    return 'กำลังดำเนินการ';
+                case 'rejected':
+                    return 'ไม่ผ่าน';
+                case 'completed':
+                    return 'เสร็จสิ้น';
+                default:
+                    return status;
+            }
+        }
+
+        function getStatusColor(status) {
+            if (status === 'completed') return '#28a745';
+            if (status === 'rejected') return '#dc3545';
+            return '#ffc107'; // content / warning color
+        }
+    </script>
+</body>
+
+</html>

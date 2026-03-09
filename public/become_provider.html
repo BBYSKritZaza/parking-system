@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Become a Provider</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBUOZZVBiN9GqDQrvvUnTO5G8JRO_Z3K9s&libraries=places"></script>
+    <style>
+        .map-container {
+            width: 100%;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #fff;
+        }
+
+        .zone-item {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        body {
+            background-color: #f4f4f9;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Become a Provider</h1>
+        <p>To become a provider, please verify your identity and submit your first parking location.</p>
+        <div id="message" class="alert" style="display:none;"></div>
+
+        <form id="upgradeForm">
+            <!-- Provider Details -->
+            <div class="section">
+                <h3>1. Provider Identity</h3>
+                <div class="form-group">
+                    <label>ID Card Number</label>
+                    <input type="text" id="id_card_number" required placeholder="Enter your ID Card Number">
+                </div>
+                <div class="form-group">
+                    <label>ID Card Image</label>
+                    <input type="file" id="id_card_image" accept="image/*" required>
+                </div>
+            </div>
+
+            <!-- Parking Details -->
+            <div class="section">
+                <h3>2. Parking Location Details</h3>
+                <div class="form-group">
+                    <label>Parking Name</label>
+                    <input type="text" id="name" required placeholder="e.g. My Home Parking">
+                </div>
+                <div class="form-group">
+                    <label>Parking Image</label>
+                    <input type="file" id="parkingImage" accept="image/*" required>
+                </div>
+                <div class="form-group">
+                    <label>Location (Click on map)</label>
+                    <div id="map" class="map-container"></div>
+                    <input type="hidden" id="lat" required>
+                    <input type="hidden" id="lng" required>
+                    <small>Selected: <span id="latlng-display">None</span></small>
+                </div>
+            </div>
+
+            <!-- Zones -->
+            <div class="section">
+                <h3>3. Zones</h3>
+                <div id="zonesContainer">
+                    <div class="zone-item">
+                        <input type="text" placeholder="Zone Name (e.g. A)" class="zone-name" required>
+                        <input type="number" placeholder="Capacity" class="zone-capacity" required min="1">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addZoneField()" style="font-size: 0.8rem;">+
+                    Add Zone</button>
+            </div>
+
+            <!-- Pricing -->
+            <div class="section">
+                <h3>4. Pricing (THB)</h3>
+                <div class="form-group">
+                    <label>Hourly Rate</label>
+                    <input type="number" id="price_hourly" value="0" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label>Daily Rate</label>
+                    <input type="number" id="price_daily" value="0" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label>Monthly Rate</label>
+                    <input type="number" id="price_monthly" value="0" min="0" required>
+                </div>
+            </div>
+
+            <!-- Operating Hours -->
+            <div class="section">
+                <h3>5. Operating Hours</h3>
+                <div class="table-responsive">
+                    <table style="width: 100%; border-collapse: collapse; min-width: 500px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left;">Day</th>
+                                <th>Open</th>
+                                <th>24 Hours</th>
+                                <th>Open Time</th>
+                                <th>Close Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hoursTableBody">
+                            <!-- Filled by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <button type="submit" class="btn" style="background-color: #28a745; margin-top:20px; width:100%;">Submit
+                Application</button>
+            <a href="welcome_user.html" class="btn-link"
+                style="display:block; text-align:center; margin-top:10px;">Cancel</a>
+        </form>
+    </div>
+
+    <script>
+        // --- Map Logic ---
+        let map, marker;
+        function initMap() {
+            const defaultLoc = { lat: 13.7563, lng: 100.5018 };
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 12,
+                center: defaultLoc,
+            });
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+                        map.setCenter(pos);
+                    }
+                );
+            }
+
+            map.addListener("click", (e) => {
+                placeMarker(e.latLng);
+            });
+        }
+
+        function placeMarker(latLng) {
+            if (marker) marker.setMap(null);
+            marker = new google.maps.Marker({ position: latLng, map: map });
+            document.getElementById('lat').value = latLng.lat();
+            document.getElementById('lng').value = latLng.lng();
+            document.getElementById('latlng-display').innerText = `${latLng.lat().toFixed(4)}, ${latLng.lng().toFixed(4)}`;
+        }
+
+        // --- Zones Logic ---
+        function addZoneField() {
+            if (document.querySelectorAll('.zone-item').length >= 10) return alert('Max 10 zones allowed.');
+            const div = document.createElement('div');
+            div.className = 'zone-item';
+            div.innerHTML = `
+                <input type="text" placeholder="Zone Name" class="zone-name" required>
+                <input type="number" placeholder="Capacity" class="zone-capacity" required min="1">
+                <button type="button" onclick="this.parentElement.remove()" style="background:red; color:white; border:none; width:30px;">x</button>
+            `;
+            document.getElementById('zonesContainer').appendChild(div);
+        }
+
+        // --- Hours Logic ---
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const tbody = document.getElementById('hoursTableBody');
+
+        days.forEach(day => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${day}</td>
+                <td><input type="checkbox" class="is-open" checked onchange="toggleRow(this)"></td>
+                <td><input type="checkbox" class="is-24h" onchange="toggleTime(this)"></td>
+                <td><input type="time" class="open-time" value="08:00"></td>
+                <td><input type="time" class="close-time" value="20:00"></td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        function toggleRow(checkbox) {
+            const row = checkbox.closest('tr');
+            const inputs = row.querySelectorAll('input:not(.is-open)');
+            inputs.forEach(input => input.disabled = !checkbox.checked);
+        }
+
+        function toggleTime(checkbox) {
+            const row = checkbox.closest('tr');
+            const timeInputs = row.querySelectorAll('input[type="time"]');
+            timeInputs.forEach(input => input.disabled = checkbox.checked);
+        }
+
+        // --- Form Submit ---
+        document.getElementById('upgradeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const token = localStorage.getItem('token');
+            if (!token) return window.location.href = 'index.html';
+
+            const formData = new FormData();
+
+            // 1. Identity
+            formData.append('id_card_number', document.getElementById('id_card_number').value);
+            formData.append('id_card_image', document.getElementById('id_card_image').files[0]);
+
+            // 2. Parking
+            formData.append('name', document.getElementById('name').value);
+            formData.append('lat', document.getElementById('lat').value);
+            formData.append('lng', document.getElementById('lng').value);
+            formData.append('parkingImage', document.getElementById('parkingImage').files[0]);
+
+            const zones = Array.from(document.querySelectorAll('.zone-item')).map(item => ({
+                name: item.querySelector('.zone-name').value,
+                capacity: item.querySelector('.zone-capacity').value
+            }));
+            formData.append('zones', JSON.stringify(zones));
+
+            const pricing = {
+                hourly: document.getElementById('price_hourly').value,
+                daily: document.getElementById('price_daily').value,
+                monthly: document.getElementById('price_monthly').value
+            };
+            formData.append('pricing', JSON.stringify(pricing));
+
+            // Hours Generation (Robust)
+            const hours = [];
+            document.querySelectorAll('#hoursTableBody tr').forEach((row, index) => {
+                hours.push({
+                    day_of_week: days[index],
+                    is_open: row.querySelector('.is-open').checked,
+                    is_24h: row.querySelector('.is-24h').checked,
+                    open_time: row.querySelector('.open-time').value,
+                    close_time: row.querySelector('.close-time').value
+                });
+            });
+            formData.append('hours', JSON.stringify(hours));
+
+            try {
+                const res = await fetch('/api/auth/upgrade-provider-unified', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    alert('Submission Successful! Please wait for Admin Approval.');
+                    let user = JSON.parse(localStorage.getItem('user'));
+                    user.provider_status = 'pending';
+                    localStorage.setItem('user', JSON.stringify(user));
+                    window.location.href = 'welcome_user.html';
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Server Error');
+            }
+        });
+
+        // Init
+        initMap();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Provider Profile</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Edit Provider Profile</h1>
+        <form id="profileForm">
+            <div class="form-group">
+                <label>First Name</label>
+                <input type="text" id="first_name" required>
+            </div>
+            <div class="form-group">
+                <label>Last Name</label>
+                <input type="text" id="last_name" required>
+            </div>
+            <div class="form-group">
+                <label>Phone</label>
+                <input type="tel" id="phone" required>
+            </div>
+            <button type="submit" class="btn">Save Changes</button>
+        </form>
+        <div style="margin: 1rem 0;">
+            <a href="provider_edit_pass.html" class="btn btn-secondary"
+                style="background-color: #ffc107; color: black; text-align:center;">Change Password</a>
+        </div>
+        <a href="welcome_provider.html" class="btn btn-secondary" style="text-align: center;">Back to Dashboard</a>
+        <a href="index.html" class="btn-link">Back to Home</a>
+    </div>
+    <script src="js/profile.js"></script>
+</body>
+
+</html>

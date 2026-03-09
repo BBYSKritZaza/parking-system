@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parking Requests</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .request-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #fff;
+            border-radius: 5px;
+        }
+
+        .details-box {
+            background: #f9f9f9;
+            padding: 10px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body style="background-color: #f4f4f9;">
+    <div class="container">
+        <h1>Parking Requests</h1>
+        <div id="message" class="alert"></div>
+        <div id="requestsList">Loading...</div>
+        <a href="admin_dashboard.html" class="btn-link">Back to Dashboard</a>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = 'index.html';
+
+        async function fetchRequests() {
+            try {
+                const res = await fetch('/api/admin-parking/pending-locations', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const requests = await res.json();
+
+                const list = document.getElementById('requestsList');
+                list.innerHTML = '';
+
+                if (requests.length === 0) {
+                    list.innerHTML = '<p>No pending requests.</p>';
+                    return;
+                }
+
+                requests.forEach(req => {
+                    const div = document.createElement('div');
+                    div.className = 'request-card';
+                    div.innerHTML = `
+                        <h3>${req.name}</h3>
+                        ${req.image_url ? `<img src="${req.image_url}" style="width:100%; max-height:200px; object-fit:cover; border-radius:5px; margin-bottom:10px;">` : ''}
+                        <p><strong>Provider:</strong> ${req.first_name} ${req.last_name} (${req.email})</p>
+                        <p><strong>Pricing:</strong> Hourly: ${req.price_hourly}, Daily: ${req.price_daily}, Monthly: ${req.price_monthly}</p>
+                        <button class="btn btn-secondary" onclick="toggleDetails(${req.id})">View Details</button>
+                        <div id="details-${req.id}" class="details-box">Loading details...</div>
+                        <div style="margin-top:10px;">
+                            <button class="btn" style="background-color:#28a745;" onclick="approve(${req.id})">Approve</button>
+                            <button class="btn" style="background-color:#dc3545;" onclick="reject(${req.id})">Reject</button>
+                        </div>
+                    `;
+                    list.appendChild(div);
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function toggleDetails(id) {
+            const box = document.getElementById(`details-${id}`);
+            if (box.style.display === 'block') {
+                box.style.display = 'none';
+                return;
+            }
+
+            box.style.display = 'block';
+            if (box.getAttribute('data-loaded')) return;
+
+            try {
+                const res = await fetch(`/api/admin-parking/location-details/${id}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+
+                let html = '<h4>Zones</h4><ul>';
+                data.zones.forEach(z => html += `<li>${z.name} (Capacity: ${z.capacity})</li>`);
+                html += '</ul><h4>Hours</h4><ul>';
+                data.hours.forEach(h => {
+                    html += `<li>${h.day_of_week}: ${h.is_open ? (h.is_24h ? '24 Hours' : `${h.open_time} - ${h.close_time}`) : 'Closed'}</li>`;
+                });
+                html += '</ul>';
+
+                box.innerHTML = html;
+                box.setAttribute('data-loaded', 'true');
+            } catch (err) {
+                box.innerHTML = 'Error loading details.';
+            }
+        }
+
+        async function approve(id) {
+            if (!confirm('Approve this parking location?')) return;
+            await updateStatus(id, 'approve-location');
+        }
+
+        async function reject(id) {
+            if (!confirm('Reject this parking location?')) return;
+            await updateStatus(id, 'reject-location');
+        }
+
+        async function updateStatus(id, action) {
+            try {
+                const res = await fetch(`/api/admin-parking/${action}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                alert(data.message);
+                fetchRequests();
+            } catch (err) {
+                alert('Error processing request');
+            }
+        }
+
+        fetchRequests();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="css/admin.css"> <!-- New Admin CSS -->
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <div class="admin-sidebar">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-shield-halved logo-icon"></i>
+            </div>
+            <div class="sidebar-menu">
+                <div class="menu-item active" onclick="loadSection('users')">รายชื่อผู้ใช้</div>
+                <div class="menu-item" onclick="loadSection('providers')">รายชื่อผู้ให้เช่า</div>
+                <div class="menu-item" onclick="loadSection('all-parking')">ข้อมูลพื้นที่จอดรถ</div>
+                <div class="menu-item" onclick="loadSection('parking-requests')">คำขอเพิ่มพื้นที่จอดรถ</div>
+                <div class="menu-item" onclick="window.location.href='admin_slots.html'">ตั้งค่าเซ็นเซอร์</div>
+                <div class="menu-item" onclick="window.location.href='admin_tickets_general.html'">คำร้องทั่วไป</div>
+                <div class="menu-item" onclick="window.location.href='admin_tickets_appeal.html'">คำร้องบัญชี</div>
+
+            </div>
+            <button class="menu-item logout-btn" onclick="logout()">ออกจากระบบ</button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="admin-main">
+            <div class="main-header">
+                <div class="user-info">
+                    <i class="fa-solid fa-circle-user user-icon"></i>
+                    <span>admin admin</span>
+                </div>
+            </div>
+
+            <div class="content-area" id="contentArea">
+                <!-- Dynamic Content Loaded Here -->
+                Loading...
+            </div>
+        </div>
+    </div>
+
+    <!-- Suspension Modal -->
+    <div id="suspendModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeSuspendModal()">&times;</span>
+            <div class="modal-header">
+                <h3>Suspend User</h3>
+            </div>
+            <div class="modal-body">
+                <p>Please enter the reason for suspension:</p>
+                <textarea id="suspendReason" class="modal-input" placeholder="Violation of terms..."></textarea>
+                <input type="hidden" id="suspendUserId">
+            </div>
+            <div class="modal-footer">
+                <button class="sub-btn" onclick="closeSuspendModal()">Cancel</button>
+                <button class="action-btn" onclick="confirmSuspend()">Confirm Suspend</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = 'admin_login.html';
+
+        // Load Default
+        loadSection('users');
+
+        async function logout() {
+            try {
+                if (token) {
+                    await fetch('/api/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+            localStorage.clear();
+            window.location.replace('admin_login.html');
+        }
+
+        async function loadSection(section) {
+            // Update Active Menu
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            // Find menu item by text or index... bit tricky directly. 
+            // Simple way: just click logic handles UI, here we handle data.
+            // Let's rely on user clicking. 
+
+            const content = document.getElementById('contentArea');
+            content.innerHTML = 'Loading...';
+
+            try {
+                if (section === 'users') {
+                    await renderUsers();
+                } else if (section === 'providers') {
+                    await renderProviders();
+                } else if (section === 'all-parking') {
+                    await renderAllParking();
+                } else if (section === 'approve-providers') {
+                    await renderApproveProviders(); // Legacy Logic rewrite
+                } else if (section === 'parking-requests') {
+                    await renderParkingRequests(); // Legacy Logic rewrite
+                } else if (section === 'user-tickets') {
+                    await renderTickets('user');
+                } else if (section === 'provider-tickets') {
+                    await renderTickets('provider');
+                } else if (section === 'suspended-users') {
+                    await renderSuspendedUsers();
+                } else {
+                    content.innerHTML = '<h2>Feature coming soon</h2>';
+                }
+            } catch (err) {
+                console.error(err);
+                content.innerHTML = `<p>Error loading section: ${err.message}</p>`;
+            }
+        }
+
+        // Global Data
+        let allUsers = [];
+        let allProviders = [];
+        let allParking = [];
+        let suspendedUsers = []; // Store specifically for this view
+
+        // --- RENDERERS ---
+
+        async function renderUsers() {
+            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
+            allUsers = await res.json();
+            displayUsers(allUsers);
+        }
+
+        async function renderSuspendedUsers() {
+            // Re-use the all-users endpoint as it contains status info, or we could make a dedicated one
+            // filtering client side is fine for now
+            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
+            const users = await res.json();
+            suspendedUsers = users.filter(u => u.account_status === 'suspended');
+
+            displaySuspendedUsers(suspendedUsers);
+        }
+
+        function displaySuspendedUsers(users) {
+            let html = `
+                <div class="page-header">
+                    <h2>บัญชีที่ถูกระงับการใช้งาน</h2>
+                    <div class="search-bar">
+                        <input type="text" placeholder="ค้นหา (ชื่อ, Email)" oninput="filterSuspendedUsers(this.value)">
+                        <i class="fa-solid fa-magnifying-glass" style="color:white; margin-right:10px;"></i>
+                    </div>
+                </div>
+                <div class="page-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ชื่อ - นามสกุล</th>
+                                <th>Email / เบอร์โทร</th>
+                                <th>เหตุผลระงับ</th>
+                                <th>คำร้อง (Appeal)</th>
+                                <th>การจัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            html += generateSuspendedRows(users);
+            html += `</tbody></table></div>`;
+            document.getElementById('contentArea').innerHTML = html;
+        }
+
+        function generateSuspendedRows(users) {
+            if (users.length === 0) return `<tr><td colspan="5" style="text-align:center;">ไม่พบข้อมูล</td></tr>`;
+            return users.map(u => `
+                <tr>
+                    <td>${u.first_name} ${u.last_name}</td>
+                    <td>
+                        <div>${u.email}</div>
+                        <div style="font-size:0.85rem; color:#666;">${u.phone || '-'}</div>
+                    </td>
+                    <td style="color:#d9534f;">${u.suspension_reason || '-'}</td>
+                    <td>
+                        ${u.appeal_message ? `<div style="background:#fff3cd; color:#856404; padding:5px; border-radius:4px;">${u.appeal_message}</div>` : '-'}
+                    </td>
+                    <td>
+                        <button class="action-btn" onclick="unsuspendUser(${u.id})">ปลดระงับ (Unsuspend)</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterSuspendedUsers(query) {
+            const lower = query.toLowerCase();
+            const filtered = suspendedUsers.filter(u =>
+                (u.first_name && u.first_name.toLowerCase().includes(lower)) ||
+                (u.last_name && u.last_name.toLowerCase().includes(lower)) ||
+                (u.email && u.email.toLowerCase().includes(lower))
+            );
+            const tbody = document.querySelector('.data-table tbody');
+            if (tbody) tbody.innerHTML = generateSuspendedRows(filtered);
+        }
+
+        function generateUserRows(users) {
+            if (users.length === 0) return `<tr><td colspan="5" style="text-align:center;">ไม่พบข้อมูล</td></tr>`;
+            return users.map(u => {
+                const isSuspended = u.account_status === 'suspended';
+                const statusBadge = isSuspended
+                    ? `<span class="badge danger">Suspended</span>`
+                    : `<span class="badge ${u.provider_status === 'approved' ? 'success' : 'secondary'}">${u.provider_status === 'approved' ? 'Provider' : 'User'}</span>`;
+
+                const appealInfo = u.appeal_message ? `<div style="color:red; font-size:0.8rem; margin-top:5px;">Appeal: ${u.appeal_message}</div>` : '';
+
+                return `
+                    <tr onclick="toggleActionRow('user-${u.id}')" style="cursor:pointer; ${isSuspended ? 'background-color:#ffe6e6;' : ''}">
+                        <td>${u.first_name}</td>
+                        <td>${u.last_name}</td>
+                        <td>${u.phone || '-'}</td>
+                        <td>${u.email} ${appealInfo}</td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                    <tr id="user-${u.id}" class="hidden action-row">
+                        <td colspan="5" style="padding:0;">
+                            <div style="display:flex; justify-content:space-around; padding:10px;">
+                                ${isSuspended
+                        ? `<button class="sub-btn" onclick="unsuspendUser(${u.id})">ยกเลิกการระงับ (Unsuspend)</button>`
+                        : `<button class="sub-btn" onclick="openSuspendModal(${u.id})">ระงับการใช้งานบัญชีผู้ใช้</button>`
+                    }
+                                <button class="sub-btn" onclick="deleteUser(${u.id})">ลบบัญชีผู้ใช้</button>
+                                <button class="sub-btn">แก้ไขข้อมูลบัญชีผู้ใช้</button>
+                            </div>
+                            ${isSuspended ? `<div style="padding:10px; background:#fff; text-align:left;"><strong>Suspension Reason:</strong> ${u.suspension_reason}</div>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function displayUsers(users) {
+            let html = `
+                <div class="page-header">
+                    <h2>แก้ไขรายชื่อผู้ใช้</h2>
+                    <div class="search-bar">
+                        <input type="text" placeholder="ค้นหาผู้ใช้ (ชื่อ, เบอร์, Email)" oninput="filterUsers(this.value)">
+                        <i class="fa-solid fa-magnifying-glass" style="color:white; margin-right:10px;"></i>
+                    </div>
+                </div>
+                <div class="page-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ชื่อ</th>
+                                <th>นามสกุล</th>
+                                <th>เบอร์โทร</th>
+                                <th>Email</th>
+                                <th>สถานะ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            html += generateUserRows(users);
+
+            html += `</tbody></table></div>`;
+            document.getElementById('contentArea').innerHTML = html;
+
+            // Restore focus to input if it exists (re-rendering kills focus)
+            // But since we re-render the WHOLE contentArea including the input, we lose focus.
+            // Better approach: Separate header (static) and list (dynamic). 
+            // For simplicity in this quick refactor, let's keep it simple or fix the UX slightly.
+            // FIX: We need to NOT re-render the search bar every time, or we use a separate function for just the table body.
+            // Let's refactor slightly to separate Page Layout from Table Content to keep input focus.
+        }
+
+        function filterUsers(query) {
+            const lowerCaseQuery = query.toLowerCase();
+            const filtered = allUsers.filter(u =>
+                (u.first_name && u.first_name.toLowerCase().includes(lowerCaseQuery)) ||
+                (u.last_name && u.last_name.toLowerCase().includes(lowerCaseQuery)) ||
+                (u.email && u.email.toLowerCase().includes(lowerCaseQuery)) ||
+                (u.phone && u.phone.includes(lowerCaseQuery))
+            );
+            // Optimization: Only update the TBODY
+            updateUsersTable(filtered);
+        }
+
+        // Special function to update ONLY the table body to preserve input focus
+        function updateUsersTable(users) {
+            const tbody = document.querySelector('.data-table tbody');
+            if (!tbody) return; // Safety check
+
+            let html = '';
+            if (users.length === 0) {
+                html = `<tr><td colspan="5" style="text-align:center;">ไม่พบข้อมูล</td></tr>`;
+            } else {
+                users.forEach(u => {
+                    const isSuspended = u.account_status === 'suspended';
+                    const statusBadge = isSuspended
+                        ? `<span class="badge danger">Suspended</span>`
+                        : `<span class="badge ${u.provider_status === 'approved' ? 'success' : 'secondary'}">${u.provider_status === 'approved' ? 'Provider' : 'User'}</span>`;
+
+                    const appealInfo = u.appeal_message ? `<div style="color:red; font-size:0.8rem; margin-top:5px;">Appeal: ${u.appeal_message}</div>` : '';
+
+                    html += `
+                        <tr onclick="toggleActionRow('user-${u.id}')" style="cursor:pointer; ${isSuspended ? 'background-color:#ffe6e6;' : ''}">
+                            <td>${u.first_name}</td>
+                            <td>${u.last_name}</td>
+                            <td>${u.phone || '-'}</td>
+                            <td>${u.email} ${appealInfo}</td>
+                            <td>${statusBadge}</td>
+                        </tr>
+                        <tr id="user-${u.id}" class="hidden action-row">
+                            <td colspan="5" style="padding:0;">
+                                <div style="display:flex; justify-content:space-around; padding:10px;">
+                                    ${isSuspended
+                            ? `<button class="sub-btn" onclick="unsuspendUser(${u.id})">ยกเลิกการระงับ (Unsuspend)</button>`
+                            : `<button class="sub-btn" onclick="openSuspendModal(${u.id})">ระงับการใช้งานบัญชีผู้ใช้</button>`
+                        }
+                                    <button class="sub-btn" onclick="deleteUser(${u.id})">ลบบัญชีผู้ใช้</button>
+                                    <button class="sub-btn">แก้ไขข้อมูลบัญชีผู้ใช้</button>
+                                </div>
+                                ${isSuspended ? `<div style="padding:10px; background:#fff; text-align:left;"><strong>Suspension Reason:</strong> ${u.suspension_reason}</div>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            tbody.innerHTML = html;
+        }
+
+        async function renderProviders() {
+            const res = await fetch('/api/admin/providers', { headers: { 'Authorization': `Bearer ${token}` } });
+            allProviders = await res.json();
+            displayProviders(allProviders);
+        }
+
+        function displayProviders(providers) {
+            let html = `
+                <div class="page-header">
+                    <h2>รายชื่อผู้ให้เช่า</h2>
+                     <div class="search-bar">
+                        <input type="text" placeholder="ค้นหาผู้ให้เช่า" oninput="filterProviders(this.value)">
+                        <i class="fa-solid fa-magnifying-glass" style="color:white; margin-right:10px;"></i>
+                    </div>
+                </div>
+                <div class="page-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>ชื่อ</th><th>นามสกุล</th><th>เบอร์โทร</th><th>Email</th></tr>
+                        </thead>
+                        <tbody>
+            `;
+            // Initial body content
+            html += generateProvidersRows(providers);
+            html += `</tbody></table></div>`;
+            document.getElementById('contentArea').innerHTML = html;
+        }
+
+        function generateProvidersRows(providers) {
+            if (providers.length === 0) return `<tr><td colspan="4" style="text-align:center;">ไม่พบข้อมูล</td></tr>`;
+            return providers.map(p => `
+                    <tr>
+                        <td>${p.first_name}</td>
+                        <td>${p.last_name}</td>
+                        <td>${p.phone || '-'}</td>
+                        <td>${p.email}</td>
+                    </tr>`).join('');
+        }
+
+        function filterProviders(query) {
+            const lowerCaseQuery = query.toLowerCase();
+            const filtered = allProviders.filter(p =>
+                (p.first_name && p.first_name.toLowerCase().includes(lowerCaseQuery)) ||
+                (p.last_name && p.last_name.toLowerCase().includes(lowerCaseQuery)) ||
+                (p.email && p.email.toLowerCase().includes(lowerCaseQuery)) ||
+                (p.phone && p.phone.includes(lowerCaseQuery))
+            );
+            const tbody = document.querySelector('.data-table tbody');
+            if (tbody) tbody.innerHTML = generateProvidersRows(filtered);
+        }
+
+
+        async function renderAllParking() {
+            const res = await fetch('/api/admin/all-parking', { headers: { 'Authorization': `Bearer ${token}` } });
+            allParking = await res.json();
+            displayAllParking(allParking);
+        }
+
+        function displayAllParking(parkingData) {
+            let html = `
+                 <div class="page-header">
+                    <h2>ข้อมูลพื้นที่จอดรถ</h2>
+                    <div class="search-bar">
+                        <input type="text" placeholder="ค้นหาพื้นที่จอดรถ" oninput="filterParking(this.value)">
+                        <i class="fa-solid fa-magnifying-glass" style="color:white; margin-right:10px;"></i>
+                    </div>
+                 </div>
+                 <div class="page-card"><table class="data-table">
+                    <thead><tr><th>ชื่อพื้นที่</th><th>ผู้ให้บริการ</th><th>สถานะ</th></tr></thead>
+                    <tbody>
+            `;
+            html += generateParkingRows(parkingData);
+            html += `</tbody></table></div>`;
+            document.getElementById('contentArea').innerHTML = html;
+        }
+
+        function generateParkingRows(parkingData) {
+            if (parkingData.length === 0) return `<tr><td colspan="3" style="text-align:center;">ไม่พบข้อมูล</td></tr>`;
+            return parkingData.map(p => `
+                    <tr onclick="toggleActionRow('park-${p.id}')" style="cursor:pointer;">
+                        <td>${p.name}</td>
+                        <td>${p.first_name} ${p.last_name}</td>
+                        <td>${p.status || 'Pending'}</td>
+                    </tr>
+                    <tr id="park-${p.id}" class="hidden action-row">
+                         <td colspan="3" style="padding:0;">
+                            <div style="display:flex; justify-content:space-around; padding:10px;">
+                                <button class="sub-btn" onclick="suspendParking(${p.id})">ระงับการใช้งาน</button>
+                                <button class="sub-btn" onclick="deleteParking(${p.id})">ลบข้อมูลพื้นที่</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+        }
+
+        function filterParking(query) {
+            const lowerCaseQuery = query.toLowerCase();
+            const filtered = allParking.filter(p =>
+                (p.name && p.name.toLowerCase().includes(lowerCaseQuery)) ||
+                (p.first_name && p.first_name.toLowerCase().includes(lowerCaseQuery)) ||
+                (p.last_name && p.last_name.toLowerCase().includes(lowerCaseQuery))
+            );
+            const tbody = document.querySelector('.data-table tbody');
+            if (tbody) tbody.innerHTML = generateParkingRows(filtered);
+        }
+
+        // Legacy: Approve Providers (from admin_approve.html)
+        async function renderApproveProviders() {
+            const res = await fetch('/api/admin/pending-providers', { headers: { 'Authorization': `Bearer ${token}` } });
+            const providers = await res.json();
+
+            let html = `<div class="page-header"><h2>อนุมัติผู้ให้เช่า</h2></div><div class="page-card">`;
+            if (providers.length === 0) html += '<p>No pending approvals.</p>';
+            else {
+                // Data now comes fully populated from backend
+                const enrichedProviders = providers;
+
+                html += enrichedProviders.map(p => {
+                    // Build Hours HTML
+                    let hoursHtml = '';
+                    if (p.hours && p.hours.length > 0) {
+                        hoursHtml = '<ul style="list-style:none; padding:0; font-size:0.9rem; margin-top:5px;">';
+                        p.hours.forEach(h => {
+                            hoursHtml += `<li><span style="display:inline-block; width:80px; font-weight:600;">${h.day_of_week}:</span> ${h.is_open ? (h.is_24h ? '24 Hours' : `${h.open_time} - ${h.close_time}`) : 'Closed'}</li>`;
+                        });
+                        hoursHtml += '</ul>';
+                    }
+
+                    // Build Zones HTML
+                    let zonesHtml = '';
+                    if (p.zones && p.zones.length > 0) {
+                        zonesHtml = '<ul style="list-style:none; padding:0; font-size:0.9rem; margin-top:5px;">';
+                        p.zones.forEach(z => {
+                            zonesHtml += `<li><span style="font-weight:600;">${z.name}</span>: <span id="zone-cap-${z.id}">${z.capacity}</span> Slots <i class="fa-solid fa-pen-to-square" style="cursor:pointer; color:#007bff; margin-left:5px;" onclick="editZoneCapacity(${z.id}, ${z.capacity})"></i></li>`;
+                        });
+                        zonesHtml += '</ul>';
+                    }
+
+                    return `
+                    <div style="background:white; padding:15px; margin-bottom:15px; border-radius:8px; border:1px solid #ddd;">
+                        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:20px;">
+                            <div style="flex:1; min-width:300px;">
+                                <h3 style="border-bottom:1px solid #eee; padding-bottom:5px; margin-bottom:10px;">👤 Applicant Identity</h3>
+                                <p><strong>Name:</strong> ${p.first_name} ${p.last_name}</p>
+                                <p><strong>Email:</strong> ${p.email}</p>
+                                <p><strong>Phone:</strong> ${p.phone}</p>
+                                <p><strong>ID Number:</strong> ${p.id_card_number}</p>
+                                <p><strong>ID Card Image:</strong></p>
+                                ${p.id_card_image ? `<img src="${p.id_card_image}" style="max-width:100%; height:auto; max-height:200px; border-radius:4px; border:1px solid #ddd; display:block; margin-top:5px;">` : '<p style="color:red;">No Image Uploaded</p>'}
+                            </div>
+                            
+                            <!-- Application Parking Info -->
+                            ${p.parking_id ? `
+                            <div style="flex:1; min-width:300px; padding-left:20px; border-left:1px solid #eee;">
+                                <h3 style="border-bottom:1px solid #eee; padding-bottom:5px; margin-bottom:10px;"><i class="fa-solid fa-square-parking"></i> Parking Details</h3>
+                                <p><strong>Name:</strong> ${p.parking_name}</p>
+                                <p><strong>Pricing:</strong> ${p.price_hourly || 0} THB/Hr, ${p.price_daily || 0} THB/Day, ${p.price_monthly || 0} THB/Mo</p>
+                                <p><strong>Location:</strong> ${p.lat}, ${p.lng} 
+                                   <a href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}" target="_blank" style="color:#007bff;">(View Map)</a>
+                                </p>
+                                ${p.parking_image_url ? `<img src="${p.parking_image_url}" style="height:120px; border-radius:4px; margin-bottom:10px;">` : ''}
+                                
+                                <div style="display:flex; gap:20px; margin-top:10px;">
+                                    <div style="flex:1; background:#f9f9f9; padding:10px; border-radius:5px;">
+                                        <strong>Zones & Capacity:</strong>
+                                        ${zonesHtml || '<p>No zones defined</p>'}
+                                    </div>
+                                    <div style="flex:1; background:#f9f9f9; padding:10px; border-radius:5px;">
+                                        <strong>Operating Hours:</strong>
+                                        ${hoursHtml || '<p>No hours defined</p>'}
+                                    </div>
+                                </div>
+                            </div>
+                            ` : '<div style="flex:1; padding-top:20px;">No parking submitted.</div>'}
+                        </div>
+                        <div style="margin-top:20px; text-align:right; border-top:1px solid #eee; padding-top:15px;">
+                             <button class="action-btn" onclick="approveProvider(${p.id})">Approve Everything</button>
+                             <button class="action-btn" style="background:#dc3545;">Reject</button>
+                        </div>
+                    </div>
+                `;
+                }).join('');
+            }
+            html += '</div>';
+            document.getElementById('contentArea').innerHTML = html;
+        }
+
+        // Legacy: Parking Requests (from admin_parking_requests.html)
+        async function renderParkingRequests() {
+            const res = await fetch('/api/admin-parking/pending-locations', { headers: { 'Authorization': `Bearer ${token}` } });
+            const requests = await res.json();
+
+            let html = `<div class="page-header"><h2>คำขอเพิ่มพื้นที่จอดรถ</h2></div><div class="page-card">`;
+            if (requests.length === 0) html += '<p>No pending requests.</p>';
+            else {
+                // Data now comes fully populated from backend
+                const enrichedRequests = requests;
+
+                html += enrichedRequests.map(req => {
+                    // Build Hours HTML
+                    let hoursHtml = '';
+                    if (req.hours && req.hours.length > 0) {
+                        hoursHtml = '<ul style="list-style:none; padding:0; font-size:0.9rem; margin-top:5px;">';
+                        req.hours.forEach(h => {
+                            hoursHtml += `<li><span style="display:inline-block; width:80px; font-weight:600;">${h.day_of_week}:</span> ${h.is_open ? (h.is_24h ? '24 Hours' : `${h.open_time} - ${h.close_time}`) : 'Closed'}</li>`;
+                        });
+                        hoursHtml += '</ul>';
+                    }
+
+                    // Build Zones HTML
+                    let zonesHtml = '';
+                    if (req.zones && req.zones.length > 0) {
+                        zonesHtml = '<ul style="list-style:none; padding:0; font-size:0.9rem; margin-top:5px;">';
+                        req.zones.forEach(z => {
+                            zonesHtml += `<li><span style="font-weight:600;">${z.name}</span>: <span id="zone-cap-${z.id}">${z.capacity}</span> Slots <i class="fa-solid fa-pen-to-square" style="cursor:pointer; color:#007bff; margin-left:5px;" onclick="editZoneCapacity(${z.id}, ${z.capacity})"></i></li>`;
+                        });
+                        zonesHtml += '</ul>';
+                    }
+
+                    return `
+                    <div style="background:white; padding:15px; margin-bottom:15px; border-radius:8px; border: 1px solid #ddd;">
+                        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:20px;">
+                            <div style="flex:1; min-width:300px;">
+                                <h3 style="border-bottom:1px solid #eee; padding-bottom:5px; margin-bottom:10px;">${req.name}</h3>
+                                <p style="color:#666; margin-bottom:10px;">Provider: <strong>${req.first_name} ${req.last_name}</strong> (${req.email})</p>
+                                <p><strong>Pricing:</strong> ${req.price_hourly} THB/Hr, ${req.price_daily} THB/Day, ${req.price_monthly} THB/Mo</p>
+                                <p><strong>Location:</strong> ${req.lat}, ${req.lng} 
+                                   <a href="https://www.google.com/maps/search/?api=1&query=${req.lat},${req.lng}" target="_blank" style="color:#007bff; margin-left:5px;">(View Map)</a>
+                                </p>
+                                ${req.image_url ? `<img src="${req.image_url}" style="height:150px; border-radius:4px; margin-top:10px; border:1px solid #ddd;">` : ''}
+                            </div>
+
+                            <div style="flex:1; min-width:300px; background:#f9f9f9; padding:15px; border-radius:8px;">
+                                <h4 style="margin-top:0;">Details</h4>
+                                <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                                    <div style="flex:1; min-width:140px;">
+                                        <h5>Zones & Capacity</h5>
+                                        ${zonesHtml || '<p>No zones defined</p>'}
+                                    </div>
+                                    <div style="flex:1; min-width:140px;">
+                                        <h5>Operating Hours</h5>
+                                        ${hoursHtml || '<p>No hours defined</p>'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top:20px; text-align:right; border-top:1px solid #eee; padding-top:15px;">
+                            <button class="action-btn" onclick="approveParking(${req.id})">Approve Location</button>
+                            <button class="action-btn" style="background:#dc3545;" onclick="rejectParking(${req.id})">Reject</button>
+                        </div>
+                    </div>
+                `;
+                }).join('');
+            }
+            html += '</div>';
+            document.getElementById('contentArea').innerHTML = html;
+        }
+
+        async function renderTickets(role) {
+            const endpoint = `/api/tickets/admin/list?role=${role}`;
+            const res = await fetch(endpoint, { headers: { 'Authorization': `Bearer ${token}` } });
+            const tickets = await res.json();
+
+            const title = role === 'user' ? 'คำร้องผู้ใช้' : 'คำร้องเจ้าของพื้นที่';
+
+            let html = `
+                <div class="page-header"><h2>${title}</h2></div>
+                <div class="page-card">
+            `;
+
+            if (tickets.length === 0) {
+                html += '<p>ไม่พบรายการคำร้อง</p>';
+            } else {
+                html += tickets.map(t => {
+                    const statusClass = getStatusClass(t.status);
+                    const statusText = getStatusText(t.status);
+
+                    // For Provider tickets, show Parking info
+                    let parkingInfo = '';
+                    if (role === 'provider' && t.parking_name) {
+                        parkingInfo = `<div style="margin-top:5px; font-size:0.9rem; color:#666;">
+                            Property: <strong>${t.parking_name}</strong> ${t.zone_name ? `(Zone: ${t.zone_name})` : ''}
+                        </div>`;
+                    }
+
+                    return `
+                    <div style="border-bottom:1px solid #eee; padding:15px;">
+                        <div style="display:flex; justify-content:space-between; cursor:pointer;" onclick="toggleReplyRow('ticket-${t.id}')">
+                            <div>
+                                <strong>${t.first_name} ${t.last_name}</strong> (${t.email}) <br>
+                                <span style="font-weight:600; color:#555;">${getTicketTypeText(t.ticket_type)}</span>
+                                ${parkingInfo}
+                            </div>
+                            <div style="text-align:right;">
+                                <span class="${statusClass}" style="padding:4px 8px; border-radius:4px; font-size:0.85rem; color:white;">${statusText}</span>
+                                <div style="font-size:0.8rem; color:#999; margin-top:5px;">${new Date(t.created_at).toLocaleString()}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top:10px; color:#333;">${t.description}</div>
+                        
+                        <!-- Reply Section -->
+                        <div id="ticket-${t.id}" style="display:none; margin-top:15px; background:#f9f9f9; padding:15px; border-radius:5px;">
+                            <div style="margin-bottom:10px;">
+                                <label style="font-weight:bold;">Update Status:</label>
+                                <select id="status-${t.id}" style="padding:5px;">
+                                    <option value="processing" ${t.status === 'processing' ? 'selected' : ''}>กำลังดำเนินการ</option>
+                                    <option value="completed" ${t.status === 'completed' ? 'selected' : ''}>ดำเนินการเสร็จสิ้น</option>
+                                </select>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <label style="font-weight:bold;">Reply:</label>
+                                <textarea id="reply-${t.id}" rows="3" style="width:100%; padding:8px;">${t.admin_reply || ''}</textarea>
+                            </div>
+                            <button onclick="updateTicket(${t.id})" class="sub-btn" style="background:#007bff; color:white; border:none;">Update Ticket</button>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            }
+            html += '</div>';
+            document.getElementById('contentArea').innerHTML = html;
+        }
+
+        async function updateTicket(id) {
+            const status = document.getElementById(`status-${id}`).value;
+            const reply = document.getElementById(`reply-${id}`).value;
+
+            try {
+                const res = await fetch(`/api/tickets/admin/update/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ status: status, admin_reply: reply })
+                });
+
+                if (res.ok) {
+                    alert('Ticket updated');
+                    // Reload current section? Easier to just hide row or reload same section.
+                    // Need to know which section we are in. A bit tricky with current structure.
+                    // Let's just reload 'user-tickets' or 'provider-tickets' based on... context?
+                    // Or simplistic reload.
+                    const activeMenu = document.querySelector('.menu-item.active');
+                    if (activeMenu) { // Trigger click again
+                        activeMenu.click();
+                    }
+                } else {
+                    alert('Error updating');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function toggleReplyRow(id) {
+            const el = document.getElementById(id);
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 'processing': return 'กำลังดำเนินการ';
+                case 'completed': return 'ดำเนินการเสร็จสิ้น';
+                default: return status;
+            }
+        }
+
+        // Hack to ensure badges look okay
+        function getStatusClass(status) {
+            // We can use inline style override in HTML generation instead of classes if css missing
+            if (status === 'completed') return 'bg-success';
+            if (status === 'processing') return 'bg-warning';
+            return 'bg-secondary';
+        }
+
+        // Helper helper
+        function getTicketTypeText(type) {
+            switch (type) {
+                case 'booking_issue': return 'ระบบการจองมีปัญหา';
+                case 'parking_issue': return 'พื้นที่จอดรถมีปัญหา';
+                case 'complaint': return 'คำร้องเรียน';
+                case 'other': return 'อื่นๆ';
+                case 'cancel_service': return 'ขอยกเลิกพื้นที่บริการ';
+                case 'cancel_parking_lot': return 'ขอยกเลิกลานจอดรถ';
+                case 'system_issue': return 'ระบบมีปัญหา';
+                case 'magnet_issue': return 'แม่เหล็กมีปัญหา';
+                default: return type;
+            }
+        }
+
+        async function toggleDetails(id) {
+            const el = document.getElementById(`details-${id}`);
+            if (el.style.display === 'none') {
+                el.style.display = 'block';
+                if (el.innerText.includes('Loading')) {
+                    // Fetch details
+                    try {
+                        const res = await fetch(`/api/admin-parking/location-details/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                        const data = await res.json();
+
+                        let detailsHtml = `<h4>Operating Hours</h4><ul style="list-style:none; padding:0; font-size:0.9rem;">`;
+                        data.hours.forEach(h => {
+                            detailsHtml += `<li><strong>${h.day_of_week}:</strong> ${h.is_open ? (h.is_24h ? '24 Hours' : `${h.open_time} - ${h.close_time}`) : 'Closed'}</li>`;
+                        });
+                        detailsHtml += `</ul>`;
+
+                        detailsHtml += `<h4 style="margin-top:10px;">Zones</h4><ul style="list-style:none; padding:0; font-size:0.9rem;">`;
+                        data.zones.forEach(z => {
+                            detailsHtml += `<li>${z.name} (Capacity: ${z.capacity})</li>`;
+                        });
+                        detailsHtml += `</ul>`;
+
+                        el.innerHTML = detailsHtml;
+
+                    } catch (err) {
+                        el.innerHTML = '<p style="color:red;">Error loading details</p>';
+                    }
+                }
+            } else {
+                el.style.display = 'none';
+            }
+        }
+
+
+        // --- ACTIONS ---
+        function toggleActionRow(id) {
+            document.getElementById(id).classList.toggle('hidden');
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('Delete this user?')) return;
+            await fetch(`/api/admin/user/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            loadSection('users');
+        }
+        // Modal Logic
+        function openSuspendModal(id) {
+            document.getElementById('suspendUserId').value = id;
+            document.getElementById('suspendReason').value = '';
+            document.getElementById('suspendModal').style.display = 'block';
+        }
+
+        function closeSuspendModal() {
+            document.getElementById('suspendModal').style.display = 'none';
+        }
+
+        async function confirmSuspend() {
+            const id = document.getElementById('suspendUserId').value;
+            const reason = document.getElementById('suspendReason').value;
+
+            if (!reason) {
+                alert('Please enter a reason');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/admin/suspend-user/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ reason })
+                });
+
+                if (res.ok) {
+                    alert('User suspended');
+                    closeSuspendModal();
+                    loadSection('users');
+                } else {
+                    const data = await res.json();
+                    alert(data.message || 'Error suspending user');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error connecting to server');
+            }
+        }
+
+        async function unsuspendUser(id) {
+            if (!confirm('Unsuspend this user?')) return;
+            try {
+                const res = await fetch(`/api/admin/unsuspend-user/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    alert('User unsuspended');
+                    loadSection('users');
+                } else {
+                    alert('Error unsuspending user');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function deleteParking(id) {
+            if (!confirm('Delete this parking?')) return;
+            await fetch(`/api/admin/parking/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            loadSection('all-parking');
+        }
+        async function suspendParking(id) {
+            if (!confirm('Suspend this parking?')) return;
+            await fetch(`/api/admin/suspend-parking/${id}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+            loadSection('all-parking');
+        }
+
+        // Logic for Approvals
+        async function approveProvider(id) {
+            await fetch(`/api/admin/approve-provider/${id}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+            loadSection('approve-providers');
+        }
+        async function approveParking(id) {
+            await fetch(`/api/admin-parking/approve-location/${id}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+            loadSection('parking-requests');
+        }
+        async function rejectParking(id) {
+            await fetch(`/api/admin-parking/reject-location/${id}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+            loadSection('parking-requests');
+        }
+
+        async function editZoneCapacity(zoneId, currentCap) {
+            const newCap = prompt("Enter new capacity:", currentCap);
+            if (newCap !== null && newCap !== "" && !isNaN(newCap)) {
+                try {
+                    const res = await fetch(`/api/admin-parking/update-zone/${zoneId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ capacity: parseInt(newCap) })
+                    });
+
+                    if (res.ok) {
+                        alert("Capacity updated!");
+                        // Update UI simply by Text replacement to avoid full reload
+                        const el = document.getElementById(`zone-cap-${zoneId}`);
+                        if (el) el.innerText = newCap;
+                        // Or reload the section to be safe
+                        // loadSection('all-parking'); // Contextual reload is hard, let's just stick to UI update
+                    } else {
+                        alert("Failed to update capacity");
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert("Error updating");
+                }
+            }
+        }
+        async function editZoneCapacity(zoneId, currentCap) {
+            const newCap = prompt("Enter new capacity:", currentCap);
+            if (newCap !== null && newCap !== "" && !isNaN(newCap)) {
+                try {
+                    const res = await fetch(`/api/admin-parking/update-zone/${zoneId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ capacity: parseInt(newCap) })
+                    });
+
+                    if (res.ok) {
+                        alert("Capacity updated!");
+                        // Update UI simply by Text replacement to avoid full reload
+                        const el = document.getElementById(`zone-cap-${zoneId}`);
+                        if (el) el.innerText = newCap;
+                    } else {
+                        alert("Failed to update capacity");
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert("Error updating");
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

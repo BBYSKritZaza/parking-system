@@ -1,0 +1,154 @@
+/* Provider Dashboard Layout */
+body {
+    background-color: #e0e0e0;
+    /* Gray background */
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.provider-layout {
+    display: flex;
+    height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 250px;
+    background-color: #d4a5a5;
+    /* Pinkish tone */
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #c0c0c0;
+}
+
+.sidebar-header {
+    padding: 20px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #333;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-menu {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.menu-item {
+    padding: 15px 20px;
+    text-decoration: none;
+    color: #333;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    transition: background 0.2s;
+    font-size: 1rem;
+}
+
+.menu-item:hover,
+.menu-item.active {
+    background-color: #c59090;
+    /* Darker pink */
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.top-bar {
+    height: 60px;
+    background-color: #d4a5a5;
+    /* Matching header color or gray? image shows header bar same color? Image shows Gray header bar actually */
+    /* Wait, image: Top bar is Gray-ish? "ปล่อยเช่าที่จอด" text. 
+       Actually image shows sidebar is pink. Top bar is gray/dark gray?
+       Let's look at image again if I could.. 
+       "Page Title" bar is likely the header.
+       Let's stick to a clean header.
+    */
+    background-color: #bbbbbb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.bar-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.user-badge {
+    background: #d98888;
+    padding: 5px 15px;
+    border-radius: 20px;
+    color: white;
+    font-weight: bold;
+}
+
+.content-area {
+    padding: 20px;
+    overflow-y: auto;
+}
+
+/* Parking List Cards */
+.parking-card {
+    background: white;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 2px rgba(0, 0, 0, 0.05);
+}
+
+.status-badge {
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.9rem;
+    color: white;
+}
+
+.status-open {
+    background-color: #28a745;
+}
+
+.status-closed {
+    background-color: #6c757d;
+}
+
+.status-maintenance {
+    background-color: #ffc107;
+    color: #333;
+}
+
+.status-suspended {
+    background-color: #dc3545;
+}
+
+.status-pending {
+    background-color: #17a2b8;
+}
+
+.status-rejected {
+    background-color: #dc3545;
+}
+
+/* Responsive Sidebar */
+@media (max-width: 768px) {
+    .provider-layout {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+    }
+
+    .main-content {
+        height: auto;
+    }
+}

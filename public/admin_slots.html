@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Manage Spots</title>
+    <link rel="stylesheet" href="css/admin.css">
+    <style>
+        .filter-section {
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .content-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .location-group {
+            background: #fff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .location-title {
+            font-size: 1.2rem;
+            color: #333;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .zone-group {
+            margin-left: 15px;
+            margin-bottom: 15px;
+        }
+
+        .zone-title {
+            font-size: 1rem;
+            color: #555;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .slots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .slot-item {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .slot-item:hover {
+            border-color: #007bff;
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+
+        .slot-number {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .sensor-tag {
+            font-size: 0.85rem;
+            color: #fff;
+            background: #28a745;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-top: 5px;
+            display: inline-block;
+        }
+
+        .sensor-tag.empty {
+            background: #6c757d;
+            /* Grey for no sensor */
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .btn-cancel {
+            background: #e2e6ea;
+            color: #333;
+        }
+
+        .btn-save {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-unlink {
+            background: #dc3545;
+            color: white;
+            margin-right: auto;
+        }
+
+        /* Add Zone Card Styles */
+        .zone-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f9f9f9 100%);
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 120px;
+        }
+
+        .zone-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border-color: #007bff;
+        }
+
+        .zone-card h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 1.2rem;
+        }
+
+        .zone-stats {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .back-btn-container {
+            margin-bottom: 20px;
+            display: none;
+            /* Hidden by default */
+        }
+    </style>
+</head>
+
+<body>
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <div class="admin-sidebar">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-shield-halved logo-icon"></i>
+            </div>
+            <div class="sidebar-menu">
+                <div class="menu-item" onclick="window.location.href='admin_dashboard.html'">Dashboard</div>
+                <div class="menu-item" onclick="window.location.href='admin_users.html'">Users</div>
+                <div class="menu-item" onclick="window.location.href='admin_providers.html'">Providers</div>
+                <div class="menu-item" onclick="window.location.href='admin_parking_requests.html'">Parking Requests
+                </div>
+                <div class="menu-item active" onclick="window.location.href='admin_slots.html'">ตั้งค่าเซ็นเซอร์</div>
+                <div class="menu-item" onclick="window.location.href='admin_tickets_general.html'">Tickets</div>
+                <div class="menu-item" onclick="window.location.href='admin_tickets_appeal.html'">คำร้องบัญชี</div>
+            </div>
+            <button class="menu-item logout-btn" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="admin-main">
+            <div class="main-header">
+                <div class="page-title-row">
+                    <h2>ตั้งค่าเซ็นเซอร์</h2>
+                </div>
+                <div class="user-info">
+                    <i class="fa-solid fa-circle-user user-icon"></i>
+                    <span>admin admin</span>
+                </div>
+            </div>
+
+            <div class="content-area" id="slotsContainer">
+
+                <div class="filter-section">
+                    <input type="text" id="searchInput" class="search-box"
+                        placeholder="ค้นหา (ชื่อโซน, ชื่อสถานที่)...">
+                </div>
+
+                <div id="backButtonArea" class="back-btn-container">
+                    <button class="action-btn" onclick="showZonesView()" style="background:#6c757d;">
+                        <i class="fa-solid fa-arrow-left"></i> ย้อนกลับไปเลือกโซน
+                    </button>
+                    <h3 id="currentZoneTitle"
+                        style="display:inline-block; margin-left:15px; vertical-align:middle; margin-bottom:0;"></h3>
+                </div>
+
+                <!-- Content Injected Here -->
+                <div id="slotsResults">
+                    <div style="text-align:center; margin-top:50px; color:#666;">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Sensor Modal -->
+    <div id="sensorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Link Sensor</div>
+            <div class="form-group">
+                <label>Selected Slot:</label>
+                <div id="selectedSlotDisplay" style="font-weight:bold; margin-bottom:10px;"></div>
+            </div>
+            <div class="form-group">
+                <label for="sensorIdInput">Sensor ID</label>
+                <input type="text" id="sensorIdInput" placeholder="e.g., SENSOR_01">
+                <small style="color:#666; display:block; margin-top:5px;">Enter the exact ID configured in your sensor
+                    script.</small>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-unlink" onclick="unlinkSensor()">Unlink</button>
+                <button class="btn btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-save" onclick="saveSensorMapping()">Save Mapping</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/admin.js"></script> <!-- Reusing admin.js for auth/logout -->
+    <script>
+        let allSlots = [];
+        let groupedData = {}; // { LocationName: { ZoneName: [slots...] } }
+        let currentSlotId = null;
+        let viewMode = 'zones'; // 'zones' or 'slots'
+        let currentSelection = { location: null, zone: null };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchSlots();
+            document.getElementById('searchInput').addEventListener('input', handleSearch);
+        });
+
+        async function fetchSlots() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    window.location.href = 'admin_login.html';
+                    return;
+                }
+                const response = await fetch('/api/admin-parking/all-slots', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch slots');
+
+                allSlots = await response.json();
+                processData(allSlots);
+                renderZonesView();
+            } catch (error) {
+                console.error(error);
+                document.getElementById('slotsResults').innerHTML = `<p style="color:red; text-align:center;">Error loading slots: ${error.message}</p>`;
+            }
+        }
+
+        function processData(slots) {
+            groupedData = {};
+            slots.forEach(slot => {
+                const locKey = slot.location_name || 'Unknown Location';
+                const zoneKey = slot.zone_name || 'Unknown Zone';
+
+                if (!groupedData[locKey]) groupedData[locKey] = {};
+                if (!groupedData[locKey][zoneKey]) groupedData[locKey][zoneKey] = [];
+                groupedData[locKey][zoneKey].push(slot);
+            });
+        }
+
+        function handleSearch() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+
+            // If query is empty, respect current view mode
+            if (!query) {
+                if (viewMode === 'slots') {
+                    renderSlotsDetailView(currentSelection.location, currentSelection.zone);
+                } else {
+                    renderZonesView();
+                }
+                return;
+            }
+
+            // If searching, show flattened matching results or filter zones?
+            // "Show Zones first" requested. 
+            // Better behavior: Search filters the Zone List.
+            renderZonesView(query);
+        }
+
+        function renderZonesView(filter = '') {
+            viewMode = 'zones';
+            const container = document.getElementById('slotsResults');
+            const backBtn = document.getElementById('backButtonArea');
+            backBtn.style.display = 'none';
+            container.innerHTML = '';
+
+            let hasResults = false;
+
+            for (const [location, zones] of Object.entries(groupedData)) {
+                // Check if location matches or any zone matches
+                const locMatch = location.toLowerCase().includes(filter);
+
+                // Filter zones
+                const matchingZones = Object.entries(zones).filter(([zoneName, slots]) => {
+                    return locMatch || zoneName.toLowerCase().includes(filter);
+                });
+
+                if (matchingZones.length === 0) continue;
+                hasResults = true;
+
+                // Render Location Header
+                const locDiv = document.createElement('div');
+                locDiv.className = 'location-group';
+
+                let html = `<div class="location-title">📍 ${location}</div>`;
+                html += `<div class="slots-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">`;
+
+                matchingZones.forEach(([zoneName, slots]) => {
+                    const total = slots.length;
+                    const mapped = slots.filter(s => s.sensor_id).length;
+
+                    html += `
+                        <div class="zone-card" onclick="openZone('${location}', '${zoneName}')">
+                            <h3>${zoneName}</h3>
+                            <div class="zone-stats">
+                                <i class="fa-solid fa-car"></i> ${total} Spots<br>
+                                <i class="fa-solid fa-link"></i> ${mapped} Linked
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+                locDiv.innerHTML = html;
+                container.appendChild(locDiv);
+            }
+
+            if (!hasResults) {
+                container.innerHTML = '<p style="text-align:center; margin-top:20px;">No matching zones found.</p>';
+            }
+        }
+
+        function openZone(location, zone) {
+            currentSelection = { location, zone };
+            renderSlotsDetailView(location, zone);
+        }
+
+        function showZonesView() {
+            document.getElementById('searchInput').value = ''; // Clear search on back
+            renderZonesView();
+        }
+
+        function renderSlotsDetailView(location, zone) {
+            viewMode = 'slots';
+            const container = document.getElementById('slotsResults');
+            const backBtn = document.getElementById('backButtonArea');
+
+            backBtn.style.display = 'block';
+            document.getElementById('currentZoneTitle').innerText = `${location} > ${zone}`;
+
+            container.innerHTML = '';
+
+            // Get slots
+            const slots = groupedData[location][zone];
+
+            // Allow searching within slots? 
+            // The global search listener handles simple filtering. 
+            // For now, let's render all slots in this zone.
+
+            const zoneDiv = document.createElement('div');
+            zoneDiv.className = 'location-group';
+
+            let html = `<div class="slots-grid">`;
+
+            slots.forEach(s => {
+                const sensorLabel = s.sensor_id ? `📡 ${s.sensor_id}` : 'No Sensor';
+                const tagClass = s.sensor_id ? '' : 'empty';
+
+                html += `
+                    <div class="slot-item" onclick="openModal(${s.id}, '${s.slot_number}', '${s.sensor_id || ''}')">
+                        <div class="slot-number">${s.slot_number}</div>
+                        <div class="sensor-tag ${tagClass}">${sensorLabel}</div>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            zoneDiv.innerHTML = html;
+            container.appendChild(zoneDiv);
+        }
+
+        // --- Modal Logic ---
+
+        function openModal(id, number, currentSensorId) {
+            currentSlotId = id;
+            document.getElementById('selectedSlotDisplay').innerText = number;
+            document.getElementById('sensorIdInput').value = currentSensorId;
+            document.getElementById('sensorModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('sensorModal').style.display = 'none';
+            currentSlotId = null;
+        }
+
+        async function saveSensorMapping() {
+            const sensorId = document.getElementById('sensorIdInput').value.trim();
+            if (!sensorId) return alert("Please enter a Sensor ID or click Unlink.");
+
+            await updateMapping(sensorId);
+        }
+
+        async function unlinkSensor() {
+            if (confirm("Are you sure you want to unlink the sensor from this slot?")) {
+                await updateMapping(null); // Send null to unlink
+            }
+        }
+
+        async function updateMapping(sensorId) {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch('/api/admin-parking/map-sensor', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ slot_id: currentSlotId, sensor_id: sensorId })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    alert('Success: ' + data.message);
+                    closeModal();
+                    // Update local data and re-render without full fetch
+                    await refreshData();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Request failed');
+            }
+        }
+
+        async function refreshData() {
+            // Re-fetch to match server state
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/admin-parking/all-slots', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    allSlots = await response.json();
+                    processData(allSlots);
+                    // Stay on current view
+                    if (viewMode === 'slots') {
+                        renderSlotsDetailView(currentSelection.location, currentSelection.zone);
+                    } else {
+                        renderZonesView();
+                    }
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        // Close modal on outside click
+        window.onclick = function (event) {
+            if (event.target == document.getElementById('sensorModal')) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สถานะที่จอดรถ - Real-time Status</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .parking-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .slot-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+            min-height: 150px;
+        }
+
+        .slot-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .slot-number {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .status-indicator {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .status-text {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .available {
+            background-color: #28a745;
+            /* Green */
+            box-shadow: 0 0 15px rgba(40, 167, 69, 0.5);
+        }
+
+        .occupied {
+            background-color: #dc3545;
+            /* Red */
+            box-shadow: 0 0 15px rgba(220, 53, 69, 0.5);
+        }
+
+        .loading {
+            color: #666;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <a href="index.html"
+        style="position: absolute; left: 20px; top: 20px; text-decoration: none; color: #333; font-weight: 500;">
+        ← กลับหน้าหลัก
+    </a>
+    <h1>สถานะที่จอดรถ</h1>
+
+    <div id="loading" class="loading">กำลังโหลดข้อมูล...</div>
+    <div id="parking-container" class="parking-container"></div>
+
+    <script>
+        async function fetchParkingStatus() {
+            try {
+                const response = await fetch('/api/parking/status');
+                const data = await response.json();
+                console.log('Parking Data:', data);
+
+                const container = document.getElementById('parking-container');
+                const loading = document.getElementById('loading');
+
+                loading.style.display = 'none';
+                container.innerHTML = ''; // Clear existing
+
+                if (data.length === 0) {
+                    container.innerHTML = '<p>ไม่พบข้อมูลที่จอดรถ</p>';
+                    return;
+                }
+
+                data.forEach(slot => {
+                    const card = document.createElement('div');
+                    card.className = 'slot-card';
+
+                    const status = slot.spot_status || 'ว่าง';
+
+                    let statusClass = 'available';
+                    let icon = '✅';
+                    let text = status;
+                    let color = '#28a745'; // Green
+
+                    // Status Mapping
+                    switch (status) {
+                        case 'ว่าง':
+                            statusClass = 'available';
+                            icon = '✅';
+                            color = '#28a745';
+                            break;
+                        case 'มีรถเล็ก':
+                        case 'มีรถใหญ่':
+                            statusClass = 'occupied';
+                            icon = '🚗';
+                            color = '#dc3545'; // Red
+                            break;
+                        case 'ไม่ใช่รถ':
+                            statusClass = 'occupied'; // Or a warning color?
+                            icon = '❌';
+                            color = '#ffc107'; // Yellow/Orange
+                            text = 'ไม่ใช่รถ (Objects)';
+                            break;
+                        case 'ยังไม่ติดตั้งแม่เหล็ก':
+                            statusClass = 'occupied';
+                            icon = '🔧';
+                            color = '#6c757d'; // Grey
+                            break;
+                        default:
+                            statusClass = 'available';
+                            icon = '✅';
+                    }
+
+                    // Format Last Updated
+                    const lastUpdated = new Date(slot.last_updated).toLocaleTimeString('th-TH');
+
+                    card.innerHTML = `
+                            <div class="slot-number">${slot.slot_number}</div>
+                            <div class="status-indicator ${statusClass}" style="background-color: ${color}; box-shadow: 0 0 15px ${color}80;">
+                                ${icon}
+                            </div>
+                            <div class="status-text" style="color: ${color}">
+                                ${text}
+                            </div>
+                            <div style="margin-top: 5px; font-size: 12px; color: #888;">
+                                Last update: ${lastUpdated}
+                            </div>
+                        `;
+
+                    container.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error('Error fetching status:', error);
+                document.getElementById('loading').innerText = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
+            }
+        }
+
+        // Fetch immediately and then every 2 seconds
+        fetchParkingStatus();
+        setInterval(fetchParkingStatus, 2000);
+    </script>
+
+</body>
+
+</html>
